@@ -1,5 +1,5 @@
 import express from 'express';
-import { nodeui } from '@nodeui/express';
+import { nodeui } from '@singhak/nodeui-express';
 
 const app = express();
 const { middleware, server } = nodeui({
