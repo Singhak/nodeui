@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    "baseUrl": "../..",
+    "paths": {
+      "@nodeui/nestjs": ["packages/nestjs/src/index.ts"],
+      "@nodeui/core": ["packages/core/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}
