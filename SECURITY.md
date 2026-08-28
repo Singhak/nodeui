@@ -14,7 +14,7 @@ is released.
 
 Please **do not** open a public issue for security problems. Report them
 privately to the maintainers by opening a GitHub advisory at
-https://github.com/nodeui/nodeui/security/advisories/new or by emailing
+https://github.com/Singhak/nodeui/security/advisories/new or by emailing
 security@nodeui.dev.
 
 You can expect:
