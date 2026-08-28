@@ -1,0 +1,60 @@
+{
+  "name": "@nodeui/core",
+  "version": "0.1.0",
+  "description": "Framework-neutral engine and safety gate for the NodeUI developer console.",
+  "license": "Apache-2.0",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "static"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "developer-console",
+    "developer-tools",
+    "observability",
+    "monitoring",
+    "debugging",
+    "bootstrap",
+    "express",
+    "nestjs",
+    "devtools"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nodeui/nodeui.git"
+  },
+  "homepage": "https://github.com/nodeui/nodeui#readme",
+  "bugs": {
+    "url": "https://github.com/nodeui/nodeui/issues"
+  },
+  "scripts": {
+    "prepublishOnly": "npm run build",
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
