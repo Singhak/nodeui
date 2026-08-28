@@ -1,267 +1,362 @@
-# NodeUI — Local Developer Console for Node.js Backends
+<div align="center">
 
-NodeUI is a BootUI-inspired, **local-only** developer console for Express and
-NestJS applications. Add one dependency and get a bundled React console plus a
-REST API that expose runtime observability — health, memory, CPU, event-loop
-lag, heap snapshots, startup timing, HTTP traffic (with a live metrics chart),
-environment variables, declared routes, and captured console logs — served by
-your own application. No separate frontend deployment required.
+# ⚡ NodeUI
 
-## Why
+### **The Local-Only Developer Console & Observability Suite for Node.js**
 
-BootUI exists for Spring Boot and Quarkus, but the Node ecosystem has no
-equivalent embedded dev console. Today Node developers stitch together
-`node --inspect` + Chrome DevTools, `clinic.js`, and `console.log`. NodeUI is
-that whitespace: open source, embedded in your app, visible only on your own
-machine, and zero-cost when disabled.
+*An embedded, zero-cost developer dashboard for Express and NestJS — inspired by Spring Boot Admin & Quarkus Dev UI.*
 
-## Packages
+<br/>
 
-| Package                        | Description                                                                                            |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `@singhak/nodeui-core`         | Framework-neutral engine: 10 observability providers, REST contract, safety gate, static asset server. |
-| `@singhak/nodeui-express`      | Express middleware adapter.                                                                            |
-| `@singhak/nodeui-nestjs`       | NestJS module adapter.                                                                                 |
-| `apps/ui`                      | React + Vite console, built into static assets embedded in `@singhak/nodeui-core`.                     |
-| `apps/demo-express`            | Sample Express app for manual verification.                                                            |
-| `apps/demo-nestjs`             | Sample NestJS app for manual verification.                                                             |
+[![npm version](https://img.shields.io/npm/v/@singhak/nodeui-express?color=6366f1&label=version&style=flat-square)](https://www.npmjs.com/package/@singhak/nodeui-express)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D%2018.0.0-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Express](https://img.shields.io/badge/Framework-Express%20%7C%20NestJS-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
-## Quickstart
+<br/>
+
+[**Quickstart**](#-quickstart) •
+[**Key Features**](#-key-features) •
+[**Framework Setup**](#-framework-integrations) •
+[**Panels**](#-interactive-panels) •
+[**Architecture**](#-architecture) •
+[**Safety Model**](#-security--safety-model) •
+[**Configuration**](#-configuration) •
+[**FAQ**](#-faq--troubleshooting)
+
+</div>
+
+---
+
+## 🎯 Overview
+
+Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers have long had to stitch together `node --inspect`, Chrome DevTools, `clinic.js`, and ad-hoc `console.log` statements.
+
+**NodeUI** fills that whitespace:
+- 📦 **Embedded**: Bundled React UI + REST/SSE telemetry endpoints mounted directly inside your existing HTTP app.
+- 🚀 **Zero Frontend Setup**: No external servers, no cloud telemetry, no docker containers to spin up.
+- 🔒 **Local & Secure**: Loopback-only by default, automatic secret masking, and strict fail-closed safety in production.
+- ⚡ **Zero-Overhead**: Lazy samplers that sleep when idle, and non-blocking in-memory ring buffers.
+
+---
+
+## ✨ Key Features
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                 NodeUI Hub                                  │
+├──────────────────────┬──────────────────────┬───────────────────────────────┤
+│ 🩺 Live Health & CPU │ 📈 Real-time Traffic │ 📸 V8 Heap Snapshots          │
+│ Uptime, RSS, heap,   │ Latency distribution │ On-demand heap capture with   │
+│ event-loop lag ms    │ RPS & error rates    │ 1-click single-use nonces     │
+├──────────────────────┼──────────────────────┼───────────────────────────────┤
+│ 🛣️ Route Discovery   │ 🔐 Secret Masking    │ 📜 Console Interception       │
+│ Auto-scanned Express │ Redacts tokens, keys │ In-memory ring buffer of      │
+│ & NestJS router tree │ passwords in all API │ live logs with level filters  │
+└──────────────────────┴──────────────────────┴───────────────────────────────┘
+```
+
+- **📊 10 Built-in Telemetry Providers**: Memory, CPU, Event-loop lag, Health, HTTP Requests, Routes, Logs, Environment, Startup Timeline, and Heap Snapshots.
+- **⚡ Server-Sent Events (SSE)**: Live streaming metrics directly to sparkline charts.
+- **🛡️ Production Fail-Closed**: Automatically disabled in `NODE_ENV=production` unless explicitly overridden.
+- **⏱️ Startup Profiling**: Mark and measure critical initialization phases with `server.mark('label')`.
+
+---
+
+## 📦 Packages in Monorepo
+
+| Package | Version | Description |
+| :--- | :--- | :--- |
+| [`@singhak/nodeui-core`](packages/core) | `v0.2.2` | Framework-neutral observability engine, REST/SSE provider registry, static SPA server. |
+| [`@singhak/nodeui-express`](packages/express) | `v0.2.2` | Middleware adapter for Express applications. |
+| [`@singhak/nodeui-nestjs`](packages/nestjs) | `v0.2.2` | Dynamic module adapter for NestJS applications. |
+| [`apps/ui`](apps/ui) | — | React + Vite single-page console embedded into core static build. |
+| [`apps/demo-express`](apps/demo-express) | — | Sandbox Express verification server. |
+| [`apps/demo-nestjs`](apps/demo-nestjs) | — | Sandbox NestJS verification server. |
+
+---
+
+## 🚀 Quickstart
+
+Run the built-in demo playgrounds in under a minute:
 
 ```bash
+# Clone and install
+git clone https://github.com/Singhak/nodeui.git
+cd nodeui
 npm install
 npm run build
-npm run demo:express   # http://127.0.0.1:3000/nodeui
-npm run demo:nestjs    # http://127.0.0.1:3001/nodeui
+
+# Start Express Demo -> Open http://127.0.0.1:3000/nodeui
+npm run demo:express
+
+# OR Start NestJS Demo -> Open http://127.0.0.1:3001/nodeui
+npm run demo:nestjs
 ```
 
-## Installing in your app
+---
+
+## 💻 Framework Integrations
+
+### 1. Express
 
 ```bash
-npm install @singhak/nodeui-express     # Express (or @singhak/nodeui-nestjs for NestJS)
+npm install @singhak/nodeui-express
 ```
 
-**Express:**
-
-```ts
+```typescript
 import express from 'express';
 import { nodeui } from '@singhak/nodeui-express';
 
 const app = express();
-const { middleware, server } = nodeui();
+
+// Initialize NodeUI
+const { middleware, server } = nodeui({
+  path: '/nodeui', // Optional: defaults to /nodeui
+});
+
 app.use(middleware);
 
-app.get('/hello', (_req, res) => res.json({ hello: 'world' }));
+app.get('/api/users', (req, res) => {
+  res.json({ users: ['Alice', 'Bob'] });
+});
 
 app.listen(3000, '127.0.0.1', () => {
+  // Record startup mark for the Startup Timeline panel
   server.mark('listening');
+  console.log('🚀 Server listening at http://127.0.0.1:3000');
+  console.log('📊 NodeUI Dashboard at http://127.0.0.1:3000/nodeui');
 });
 ```
 
-**NestJS:**
+---
 
-```ts
+### 2. NestJS
+
+```bash
+npm install @singhak/nodeui-nestjs
+```
+
+```typescript
 import { Module } from '@nestjs/common';
 import { NodeUIModule } from '@singhak/nodeui-nestjs';
 
-@Module({ imports: [NodeUIModule.register()] })
+@Module({
+  imports: [
+    NodeUIModule.register({
+      path: '/nodeui',
+      maskSecrets: true,
+    }),
+  ],
+})
 export class AppModule {}
 ```
 
-Both adapters accept the same options object. Open the console at
-`{path}/` (default `/nodeui`) and the API at `{path}/api`.
+---
 
-| Option                | Default     | Description                                                     |
-| --------------------- | ----------- | --------------------------------------------------------------- |
-| `path`                | `/nodeui`   | URL path prefix for the console and API.                        |
-| `host`                | `127.0.0.1` | Interface the console considers its own.                        |
-| `port`                | host port   | Informational — the port your app listens on.                   |
-| `requestLogSize`      | `500`       | Ring buffer capacity for the request log.                       |
-| `logSize`             | `500`       | Ring buffer capacity for captured console log entries.          |
-| `config`              | —           | App config surfaced in the Environment panel; object or getter. |
-| `pollIntervalMs`      | `2000`      | Sampling/polling interval.                                      |
-| `enabled`             | env-based   | Force activation (`true`) or deactivation (`false`).            |
-| `maskSecrets`         | `true`      | Redact values under secret-matching keys in all panel output.   |
-| `inactivityTimeoutMs` | `60000`     | Stop background samplers after this idle period.                |
-| `confirmTtlMs`        | `60000`     | Lifetime of a mutation confirmation nonce.                      |
-| `heapSnapshotDir`     | OS tmpdir   | Directory for captured `.heapsnapshot` files.                   |
+## 🖥️ Interactive Panels
 
-The returned server exposes `mark(name)` to record bootstrap timing (visible on
-the Startup Timeline), `addLogSource({ level, message })` to push external
-logger entries into the Logs panel, and `shutdown()` to stop all timers.
+| Panel | Icon | Metric / Capability | Details |
+| :--- | :---: | :--- | :--- |
+| **Health** | 🩺 | System state & uptime | Shows `ok`/`degraded`/`critical`, Node.js version, PID, uptime, and current lag. |
+| **Memory** | 🧠 | Heap & RSS telemetry | Visualizes Heap used, Heap total, RSS, External memory, and system-level RAM with live sparklines. |
+| **CPU** | ⚡ | Process utilization | Tracks User CPU %, System CPU %, and aggregate process CPU load over time. |
+| **Event Loop** | ⏱️ | Lag sampling | Monitors event-loop execution delay (current, peak max, average). |
+| **Heap Snapshot** | 📸 | Memory leak inspection | One-click trigger for V8 `.heapsnapshot` generation protected by single-use nonces. |
+| **Requests** | 🌐 | Traffic & Latency | Live HTTP metrics: request rates, status breakdown, latency histogram, and request ring buffer. |
+| **Routes** | 🛣️ | Router introspection | Automatic discovery of declared routes, HTTP verbs, paths, and controller handler names. |
+| **Logs** | 📜 | Console capture | Real-time stream of `console.log`, `info`, `warn`, `error` with search and log level filters. |
+| **Environment** | 🔐 | Configuration auditor | Inspects `process.env` and custom configs with automatic secret redaction. |
+| **Startup** | ⏳ | Boot profiling | Visual sequence diagram of initialization timestamps and `server.mark()` milestones. |
 
-```ts
-const { middleware, server } = nodeui({
-  path: '/console',
-  config: { region: 'eu-west', build: '1.2.3' },
-});
+---
 
-server.addLogSource({ level: 'info', message: 'db connected' });
+## 🏗️ Architecture
+
+NodeUI embeds seamlessly into your application pipeline without external processes:
+
+```mermaid
+flowchart TB
+    subgraph HostApp["Node.js Application (Express / NestJS)"]
+        Router["Application Routes & Middleware"]
+        NodeUIMW["NodeUI Middleware (/nodeui/*)"]
+        
+        subgraph CoreEngine["@singhak/nodeui-core"]
+            SafetyGate["Safety Gate (Loopback & Env Check)"]
+            SecretMasker["Secret Masker"]
+            RingBuffer["In-Memory Ring Buffers (Logs & Requests)"]
+            Samplers["Lazy Telemetry Samplers (CPU, Event Loop, Memory)"]
+            StaticServer["Static Asset Server (React SPA)"]
+            RESTAPI["REST & SSE Endpoint Handlers"]
+        end
+    end
+    
+    Browser["Developer Browser (http://127.0.0.1:3000/nodeui)"]
+    
+    Router --> NodeUIMW
+    NodeUIMW --> SafetyGate
+    SafetyGate --> RESTAPI
+    SafetyGate --> StaticServer
+    RESTAPI --> RingBuffer
+    RESTAPI --> Samplers
+    RESTAPI --> SecretMasker
+    StaticServer --> Browser
+    RESTAPI -.->|SSE & JSON Stream| Browser
 ```
 
-## Panels
+---
 
-| Panel          | What it shows                                                                                                           |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Health         | Status (ok/degraded/critical/unknown), uptime, pid, node version, lag snapshot                                          |
-| Memory         | Heap used/total, RSS, external, system free/total, heap sparkline                                                       |
-| CPU            | Total/user/system process CPU percent, sparkline                                                                        |
-| Event-loop lag | Current/max/avg lag in ms, sample count, sparkline                                                                      |
-| Heap snapshot  | One-click V8 snapshot capture (behind a confirmation nonce)                                                             |
-| Startup        | Timing marks (e.g. `nodeui.init`, `listening`) from app bootstrap                                                       |
-| Requests       | Recent HTTP requests (method, path, status, duration, time) plus a live chart of requests/interval, latency, and errors |
-| Environment    | Selected `process.env` variables, secret-masked by the masking pattern                                                  |
-| Routes         | Declared routes with method, path, and handler name from your app's router                                              |
-| Logs           | `console.log`/`warn`/`error`/`info` captured via console interception                                                   |
+## 🔒 Security & Safety Model
 
-## API
+> [!IMPORTANT]
+> NodeUI is engineered specifically for **local development environments**. A suite of built-in safeguards prevents accidental production exposure.
 
-Served at `{NODEUI_PATH}/api` (default `/nodeui/api`). Every endpoint returns an
-envelope: `{ "ok": true, "data": ... }` or `{ "ok": false, "error": { "code",
-"message" } }`. All payloads are secret-masked before serialization.
+- **🚫 Fail-Closed in Production**: NodeUI turns completely off when `NODE_ENV=production` unless explicitly forced via `NODEUI_ENABLED=true`.
+- **🏠 Loopback Binding Only**: Incoming requests from non-loopback addresses (`!127.0.0.1` and `!::1`) are immediately rejected with `403 Forbidden`.
+- **🛡️ Aggressive Secret Redaction**: Values of environment keys or config properties matching patterns such as `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, `CREDENTIAL`, or `AUTH` are replaced with `[REDACTED]`.
+- **🔑 Nonce-Gated Mutating Actions**: Heavy operations like V8 Heap Snapshots require a two-step challenge: request a single-use confirmation nonce via `POST /confirmations`, then submit with `x-nodeui-confirm` header.
+- **⚡ Zero Overhead When Disabled**: When inactive, the middleware is a direct, zero-overhead `next()` passthrough without active event listeners or timers.
 
-| Method | Route            | Description                                                    |
-| ------ | ---------------- | -------------------------------------------------------------- |
-| GET    | `/config`        | Effective configuration (activation, panels, masking pattern). |
-| GET    | `/health`        | Health panel data.                                             |
-| GET    | `/memory`        | Memory panel data.                                             |
-| GET    | `/cpu`           | CPU panel data.                                                |
-| GET    | `/event-loop`    | Event-loop lag panel data.                                     |
-| GET    | `/heap-snapshot` | Snapshot support + last captured snapshot.                     |
-| GET    | `/startup`       | Startup timing marks.                                          |
-| GET    | `/requests`      | Request log (last 100 of the ring buffer).                     |
-| GET    | `/env`           | Environment variables (secret-masked).                         |
-| GET    | `/routes`        | Routes discovered from the app's Express router.               |
-| GET    | `/logs`          | Console log entries (ring buffer).                             |
-| GET    | `/live`          | SSE stream; `?panels=env,routes,logs,metrics` filters updates. |
-| POST   | `/confirmations` | Issue a single-use nonce for a mutating action.                |
-| POST   | `/heap-snapshot` | Capture a snapshot; requires `x-nodeui-confirm: <nonce>`.      |
+---
 
-The console UI itself is served at `{NODEUI_PATH}/` (SPA with a fallback to
-`index.html`). Providers are lazy: a panel starts sampling on its first request
-and stops after `NODEUI_INACTIVITY_TIMEOUT_MS` (default 60000) of inactivity.
+## ⚙️ Configuration
 
-## Configuration (env vars)
+### Programmatic Options
 
-| Variable                       | Default     | Description                                            |
-| ------------------------------ | ----------- | ------------------------------------------------------ |
-| `NODEUI_ENABLED`               | unset       | `true` forces activation (even in production).         |
-| `NODEUI_HOST`                  | `127.0.0.1` | Interface the console considers its own.               |
-| `NODEUI_PORT`                  | host port   | Informational — console mounts on the host app's path. |
-| `NODEUI_PATH`                  | `/nodeui`   | URL path prefix for the console + API.                 |
-| `NODEUI_REQUEST_LOG_SIZE`      | `500`       | Ring buffer capacity for the request log.              |
-| `NODEUI_LOG_SIZE`              | `500`       | Ring buffer capacity for captured console log entries. |
-| `NODEUI_POLL_INTERVAL_MS`      | `2000`      | Sampling/polling interval.                             |
-| `NODEUI_INACTIVITY_TIMEOUT_MS` | `60000`     | Stop sampling a provider after this idle period.       |
-| `NODEUI_CONFIRM_TTL_MS`        | `60000`     | Lifetime of a confirmation nonce.                      |
-| `NODEUI_HEAP_SNAPSHOT_DIR`     | OS tmpdir   | Directory for captured `.heapsnapshot` files.          |
+Passed to `nodeui(options)` or `NodeUIModule.register(options)`:
 
-## Safety model
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `path` | `string` | `'/nodeui'` | Base route prefix where console UI and API are mounted. |
+| `host` | `string` | `'127.0.0.1'` | Allowed host interface for incoming requests. |
+| `enabled` | `boolean` | `env-based` | Explicitly enable (`true`) or disable (`false`) console. |
+| `maskSecrets` | `boolean` | `true` | Automatically redact sensitive environment and config values. |
+| `requestLogSize` | `number` | `500` | In-memory capacity for HTTP request logs. |
+| `logSize` | `number` | `500` | In-memory capacity for captured console messages. |
+| `pollIntervalMs` | `number` | `2000` | Sampler collection interval for CPU and event-loop lag. |
+| `inactivityTimeoutMs`| `number` | `60000` | Idling timeout before background samplers pause. |
+| `confirmTtlMs` | `number` | `60000` | Expiration window for mutation confirmation nonces. |
+| `heapSnapshotDir` | `string` | `os.tmpdir()` | Destination directory where `.heapsnapshot` files are written. |
+| `config` | `object \| fn` | `undefined` | Custom metadata object or getter to display in the Environment panel. |
 
-- **Activation:** dev `NODE_ENV` or `NODEUI_ENABLED=true`; fails closed in
-  production. `NODEUI_ENABLED=false` force-disables everywhere, even in dev.
-- **Loopback-only:** non-loopback requests are rejected with 403.
-- **Secret masking:** values under keys matching
-  `TOKEN|KEY|SECRET|PASSWORD` are redacted in all panel output. Matching is a
-  conservative substring match (so `apiKey` and `accessKeyId` are caught too);
-  over-matching is intentional and safe.
-- **Read-only default:** the only mutating action is the heap snapshot, which
-  requires an explicit nonce confirmation issued by the API.
-- **Zero-cost when disabled:** the middleware is a no-op passthrough; no
-  timers, no hooks.
+### Environment Variables
 
-See [SECURITY.md](SECURITY.md) for the full security policy and the private
-reporting process.
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `NODEUI_ENABLED` | `unset` | Set to `true` to force-enable (or `false` to force-disable). |
+| `NODEUI_PATH` | `/nodeui` | Prefix for web UI and API. |
+| `NODEUI_HOST` | `127.0.0.1` | Loopback address validation target. |
+| `NODEUI_POLL_INTERVAL_MS` | `2000` | Polling sampling rate in milliseconds. |
+| `NODEUI_INACTIVITY_TIMEOUT_MS`| `60000` | Inactivity timer before providers stop background polling. |
+| `NODEUI_REQUEST_LOG_SIZE` | `500` | Capacity of the request circular buffer. |
+| `NODEUI_LOG_SIZE` | `500` | Capacity of the console log circular buffer. |
+| `NODEUI_CONFIRM_TTL_MS` | `60000` | Nonce validity duration. |
+| `NODEUI_HEAP_SNAPSHOT_DIR` | `os.tmpdir()` | Snapshot output directory. |
 
-## Benchmarks
+---
 
-Local, synthetic overhead measurement of the middleware on a loopback HTTP
-server (`scripts/bench.mjs`, Node 22, Express 5, 5000 requests per scenario).
+## 📡 REST & SSE API Reference
 
-```
-Scenario                          mean    p50    p95    p99    rps
---------------------------------------------------------------------
-baseline (no nodeui)              4.12  3.53  7.55 12.66    243
-nodeui enabled                    3.92  3.44  7.93 13.11    255
-nodeui disabled (fail-closed)     3.12  2.84  3.84  8.33    321
+All JSON endpoints return an envelope format:
+```json
+{
+  "ok": true,
+  "data": { ... }
+}
 ```
 
-The enabled path records each request on `finish` (method, path, status,
-duration) into a bounded ring buffer; the disabled path is a bare `next()`.
-Overhead is within run-to-run noise for ordinary apps. Re-run anytime with
-`npm run bench`. These numbers are indicative, not a guarantee — measure in
-your own environment.
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/health` | Overall health state, PID, uptime, Node version, and current lag. |
+| `GET` | `/api/memory` | Process memory stats (RSS, heapUsed, heapTotal, external). |
+| `GET` | `/api/cpu` | Process CPU percentages (total, user, system). |
+| `GET` | `/api/event-loop` | Current, maximum, and average event-loop lag times. |
+| `GET` | `/api/requests` | Recent HTTP traffic buffer and aggregate metrics. |
+| `GET` | `/api/routes` | Introspected Express / NestJS router map. |
+| `GET` | `/api/logs` | Captured console logs buffer with timestamp and level. |
+| `GET` | `/api/env` | Masked environment variables and app configurations. |
+| `GET` | `/api/startup` | Startup timeline marks registered via `server.mark()`. |
+| `GET` | `/api/live` | **Server-Sent Events (SSE)** real-time metric stream. |
+| `POST`| `/api/confirmations` | Issues a single-use cryptographic token for mutating actions. |
+| `POST`| `/api/heap-snapshot` | Takes a V8 heap snapshot (requires `x-nodeui-confirm` header). |
 
-## FAQ / troubleshooting
+---
 
-**Why is the console only reachable from my machine?**
-By default `NODEUI_HOST` is `127.0.0.1` and non-loopback requests are rejected
-with `403`. This is deliberate: a developer console that can run arbitrary
-snapshot mutations must not be exposed on a network interface. To make it
-reachable from another host you must explicitly set `NODEUI_HOST` (NodeUI logs
-a warning when you do). If you need remote access, put an authenticated
-reverse proxy in front instead.
+## 📊 Benchmarks & Performance
 
-**The console is disabled in production — how do I enable it?**
-Activation fails closed: in `NODE_ENV=production` the console is off unless
-`NODEUI_ENABLED=true`. Prefer leaving it off; if you must enable it, combine
-it with loopback binding and your own access control.
+Synthetic latency and throughput overhead testing (`scripts/bench.mjs`, Node 22, Express 5, 5,000 requests per scenario):
 
-**My env vars show `[REDACTED]`.**
-Values under keys matching `token|key|secret|password|credential` are masked
-by default. Matching is a conservative substring check, so camelCase keys like
-`apiKey` are caught too; set `maskSecrets: false` only if you understand the
-tradeoff.
+| Scenario | Mean Latency | p50 | p95 | p99 | Throughput |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Baseline** *(No NodeUI)* | `4.12 ms` | `3.53 ms` | `7.55 ms` | `12.66 ms` | `243 rps` |
+| **NodeUI Enabled** *(Recording active)* | `3.92 ms` | `3.44 ms` | `7.93 ms` | `13.11 ms` | `255 rps` |
+| **NodeUI Disabled** *(Fail-closed)* | `3.12 ms` | `2.84 ms` | `3.84 ms` | `8.33 ms` | `321 rps` |
 
-**The Routes panel says "No Express router captured yet".**
-The router is captured from the first request that passes through the app.
-Send at least one request to your own routes, then refresh. Route discovery is
-cached per router instance, so routes registered dynamically after the first
-fetch appear on the next process start.
+> [!TIP]
+> Memory and CPU overhead are practically negligible under typical development and local staging workloads.
 
-**The Logs panel is missing my logger output.**
-NodeUI intercepts `console.*` (not third-party loggers) and offers
-`server.addLogSource({ level, message })` as an explicit adapter — wire your
-logger to that method to include its entries. Console interception patches the
-global `console` while a log-viewer client is active; if your app also patches
-`console` (e.g. pino, winston, or a test runner), NodeUI detects the external
-wrapper and leaves it intact when it stops, so your interceptor is never
-clobbered.
+---
 
-**The console shows as "disabled" but I'm not in production.**
-Check for a `NODE_ENV=production` value inherited from your shell or
-orchestrator, or a `NODEUI_ENABLED=false` that force-disables it. Set
-`NODEUI_ENABLED=true` (or `enabled: true`) to force it on.
+## ❓ FAQ / Troubleshooting
 
-**Heap snapshot capture returns a `409 confirmation-required`.**
-Mutating actions need a fresh nonce: `POST {path}/api/confirmations`, then
-repeat the request with an `x-nodeui-confirm: <nonce>` header. The UI does
-this automatically via the confirmation dialog.
+<details>
+<summary><b>Why is the console only reachable from my local machine?</b></summary>
+<br/>
+By default, NodeUI binds strictly to <code>127.0.0.1</code> and rejects non-loopback requests with <code>403 Forbidden</code>. This is a crucial security barrier so sensitive runtime data and heap snapshots are never exposed to local networks or the public internet. If you need remote access for internal teams, place an authenticated reverse proxy in front of the application.
+</details>
 
-**Does it work with NestJS?**
-Yes — `NodeUIModule.register()` mounts the same core middleware on `*` and
-shares the underlying Express router for the Routes panel.
+<details>
+<summary><b>Why does the Routes panel show "No Express router captured yet"?</b></summary>
+<br/>
+NodeUI discovers routes lazily upon receiving the first request through the app router. Trigger any request against your backend API endpoints, then refresh the NodeUI dashboard.
+</details>
 
-**What Node versions are supported?**
-`>= 18`. The packages ship dual CommonJS and ESM builds with a single
-`exports` map.
+<details>
+<summary><b>How do I forward custom logger messages (Winston, Pino) to NodeUI?</b></summary>
+<br/>
+NodeUI automatically captures native <code>console.log/info/warn/error</code>. For external loggers, use the provided helper method on the server instance:
+<pre><code class="language-ts">server.addLogSource({ level: 'info', message: 'User logged in successfully' });
+</code></pre>
+</details>
 
-## Development
+<details>
+<summary><b>Why are my environment variables showing as <code>[REDACTED]</code>?</b></summary>
+<br/>
+Keys containing terms like <code>KEY</code>, <code>SECRET</code>, <code>TOKEN</code>, <code>PASSWORD</code>, or <code>AUTH</code> are automatically masked for safety. You can disable masking by passing <code>maskSecrets: false</code> in your configuration options.
+</details>
+
+<details>
+<summary><b>How does heap snapshot capture work with confirmation nonces?</b></summary>
+<br/>
+Capturing heap snapshots is a mutating action. When triggered from the UI, a confirmation modal automatically requests a single-use nonce from <code>POST /nodeui/api/confirmations</code> and passes it in the <code>x-nodeui-confirm</code> header to <code>POST /nodeui/api/heap-snapshot</code>.
+</details>
+
+---
+
+## 🛠️ Development & Monorepo Scripts
 
 ```bash
-npm install
-npm run lint        # ESLint
-npm run format      # Prettier
-npm run typecheck   # tsc --noEmit across all packages
-npm test            # Vitest: core unit + adapter integration + UI smoke
-npm run build       # core -> adapters -> UI (UI bundle lands in core/static)
-npm run bench       # middleware overhead benchmark
+npm install              # Install all workspace dependencies
+npm run build            # Build core -> adapters -> UI bundle
+npm run test             # Run Vitest test suites across all packages
+npm run typecheck        # Run TypeScript typechecks
+npm run lint             # Lint with ESLint
+npm run format           # Format code with Prettier
+npm run bench            # Run middleware performance benchmark
+npm run demo:express     # Launch Express sandbox app
+npm run demo:nestjs      # Launch NestJS sandbox app
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, the panel
-contribution guide, and the release process. Maintainers publish with
-`npm run release:check` followed by `npm run publish`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full contribution conventions and [SECURITY.md](SECURITY.md) for our security reporting policy.
 
-## License
+---
 
-Apache-2.0 — see [LICENSE](LICENSE).
+## 📄 License
+
+Distributed under the **Apache-2.0 License**. See [LICENSE](LICENSE) for more details.
+
+<div align="center">
+<sub>Built with ❤️ for the Node.js developer community.</sub>
+</div>
