@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": true,
+    "baseUrl": "../..",
+    "paths": {
+      "@nodeui/express": ["packages/express/src/index.ts"],
+      "@nodeui/core": ["packages/core/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}
