@@ -13,7 +13,7 @@ function makeApp(options?: Parameters<typeof nodeui>[0]) {
   return { app, server };
 }
 
-describe('@nodeui/express', () => {
+describe('@singhak/nodeui-express', () => {
   it('serves the config envelope under /nodeui/api', async () => {
     const { app, server } = makeApp();
     const res = await request(app).get('/nodeui/api/config');

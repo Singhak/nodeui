@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { NodeUIServer } from '@nodeui/core';
+import type { NodeUIServer } from '@singhak/nodeui-core';
 import { NODEUI_SERVER } from './tokens';
 
 /** Injectable handle to the NodeUI server: record startup marks, read config. */

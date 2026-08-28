@@ -24,7 +24,7 @@ afterEach(async () => {
   }
 });
 
-describe('@nodeui/nestjs', () => {
+describe('@singhak/nodeui-nestjs', () => {
   it('serves the console API under /nodeui/api', async () => {
     const app = await createApp();
     const res = await request(app.getHttpServer()).get('/nodeui/api/config');

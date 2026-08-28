@@ -3,7 +3,7 @@ import {
   type NodeUIMiddleware,
   type NodeUIOptions,
   type NodeUIServer,
-} from '@nodeui/core';
+} from '@singhak/nodeui-core';
 
 export interface NodeUIExpress {
   /** Express middleware that mounts the console; call `app.use(middleware)`. */
@@ -27,4 +27,4 @@ export function nodeui(options?: NodeUIOptions): NodeUIExpress {
   return { middleware: server.middleware(), server, addLogSource: server.addLogSource };
 }
 
-export * from '@nodeui/core';
+export * from '@singhak/nodeui-core';

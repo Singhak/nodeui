@@ -1,5 +1,5 @@
 {
-  "name": "@nodeui/core",
+  "name": "@singhak/nodeui-core",
   "version": "0.1.0",
   "description": "Framework-neutral engine and safety gate for the NodeUI developer console.",
   "license": "Apache-2.0",

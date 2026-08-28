@@ -1,4 +1,4 @@
-# @nodeui/nestjs
+# @singhak/nodeui-nestjs
 
 NestJS module adapter for the NodeUI developer console. Registers the core
 middleware for every route, serving the bundled React console and its API under
@@ -8,7 +8,7 @@ panel.
 ## Install
 
 ```bash
-npm install @nodeui/nestjs
+npm install @singhak/nodeui-nestjs
 ```
 
 Peer dependencies: `@nestjs/common`, `@nestjs/core`, `reflect-metadata`,
@@ -18,7 +18,7 @@ Peer dependencies: `@nestjs/common`, `@nestjs/core`, `reflect-metadata`,
 
 ```ts
 import { Module } from '@nestjs/common';
-import { NodeUIModule } from '@nodeui/nestjs';
+import { NodeUIModule } from '@singhak/nodeui-nestjs';
 
 @Module({ imports: [NodeUIModule.register()] })
 export class AppModule {}
@@ -28,7 +28,7 @@ export class AppModule {}
 // main.ts
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { NodeUIService } from '@nodeui/nestjs';
+import { NodeUIService } from '@singhak/nodeui-nestjs';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
@@ -53,8 +53,8 @@ Injectable handle to the underlying server:
 
 ## Options
 
-`NodeUIModule.register(options?)` accepts any `@nodeui/core` `NodeUIOptions`.
-See the `@nodeui/core` README for the configuration table and safety model.
+`NodeUIModule.register(options?)` accepts any `@singhak/nodeui-core` `NodeUIOptions`.
+See the `@singhak/nodeui-core` README for the configuration table and safety model.
 
 ## Development
 

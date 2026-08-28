@@ -1,4 +1,4 @@
-# @nodeui/express
+# @singhak/nodeui-express
 
 Express middleware adapter for the NodeUI developer console. Mounts the core
 middleware, serving the bundled React console and its API under `{path}`
@@ -7,14 +7,14 @@ middleware, serving the bundled React console and its API under `{path}`
 ## Install
 
 ```bash
-npm install @nodeui/express
+npm install @singhak/nodeui-express
 ```
 
 ## Usage
 
 ```ts
 import express from 'express';
-import { nodeui } from '@nodeui/express';
+import { nodeui } from '@singhak/nodeui-express';
 
 const app = express();
 const { middleware, server } = nodeui();
@@ -34,8 +34,8 @@ Open `http://127.0.0.1:3000/nodeui` for the console and
 
 ## Options
 
-`nodeui(options?)` accepts any `@nodeui/core` `NodeUIOptions` (env overrides,
-path, request-log size, poll interval, etc.). See the `@nodeui/core` README for
+`nodeui(options?)` accepts any `@singhak/nodeui-core` `NodeUIOptions` (env overrides,
+path, request-log size, poll interval, etc.). See the `@singhak/nodeui-core` README for
 the full configuration table and safety model.
 
 ## Development

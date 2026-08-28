@@ -8,7 +8,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@nodeui/core': resolve(__dirname, '../core/src/index.ts'),
+      '@singhak/nodeui-core': resolve(__dirname, '../core/src/index.ts'),
     },
   },
 });

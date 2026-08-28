@@ -1,5 +1,5 @@
 import { DynamicModule, Inject, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { createNodeUI, type NodeUIOptions, type NodeUIServer } from '@nodeui/core';
+import { createNodeUI, type NodeUIOptions, type NodeUIServer } from '@singhak/nodeui-core';
 import { NodeUIService } from './nodeui.service';
 import { NODEUI_SERVER } from './tokens';
 

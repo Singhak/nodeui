@@ -1,5 +1,5 @@
 {
-  "name": "@nodeui/express",
+  "name": "@singhak/nodeui-express",
   "version": "0.1.0",
   "description": "Express middleware adapter for the NodeUI developer console.",
   "license": "Apache-2.0",
@@ -47,7 +47,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@nodeui/core": "^0.1.0"
+    "@singhak/nodeui-core": "^0.1.0"
   },
   "peerDependencies": {
     "express": "^4.0.0 || ^5.0.0"

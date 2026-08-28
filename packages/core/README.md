@@ -1,9 +1,9 @@
-# @nodeui/core
+# @singhak/nodeui-core
 
 Framework-neutral engine for the NodeUI developer console: observability
 providers, the REST contract, the safety gate, and the static console server.
 The Express and NestJS adapters build on this package; you normally consume
-those instead of using `@nodeui/core` directly.
+those instead of using `@singhak/nodeui-core` directly.
 
 ## Providers
 
@@ -64,7 +64,7 @@ Environment variables are read at `createNodeUI()` time (overridable via the
 ## Usage
 
 ```ts
-import { createNodeUI, type NodeUIServer } from '@nodeui/core';
+import { createNodeUI, type NodeUIServer } from '@singhak/nodeui-core';
 
 const server: NodeUIServer = createNodeUI();
 const middleware = server.middleware();

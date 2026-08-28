@@ -17,14 +17,14 @@ machine, and zero-cost when disabled.
 
 ## Packages
 
-| Package             | Description                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------ |
-| `@nodeui/core`      | Framework-neutral engine: 10 observability providers, REST contract, safety gate, static asset server. |
-| `@nodeui/express`   | Express middleware adapter.                                                                            |
-| `@nodeui/nestjs`    | NestJS module adapter.                                                                                 |
-| `apps/ui`           | React + Vite console, built into static assets embedded in `@nodeui/core`.                             |
-| `apps/demo-express` | Sample Express app for manual verification.                                                            |
-| `apps/demo-nestjs`  | Sample NestJS app for manual verification.                                                             |
+| Package                        | Description                                                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `@singhak/nodeui-core`         | Framework-neutral engine: 10 observability providers, REST contract, safety gate, static asset server. |
+| `@singhak/nodeui-express`      | Express middleware adapter.                                                                            |
+| `@singhak/nodeui-nestjs`       | NestJS module adapter.                                                                                 |
+| `apps/ui`                      | React + Vite console, built into static assets embedded in `@singhak/nodeui-core`.                     |
+| `apps/demo-express`            | Sample Express app for manual verification.                                                            |
+| `apps/demo-nestjs`             | Sample NestJS app for manual verification.                                                             |
 
 ## Quickstart
 
@@ -38,14 +38,14 @@ npm run demo:nestjs    # http://127.0.0.1:3001/nodeui
 ## Installing in your app
 
 ```bash
-npm install @nodeui/express     # Express (or @nodeui/nestjs for NestJS)
+npm install @singhak/nodeui-express     # Express (or @singhak/nodeui-nestjs for NestJS)
 ```
 
 **Express:**
 
 ```ts
 import express from 'express';
-import { nodeui } from '@nodeui/express';
+import { nodeui } from '@singhak/nodeui-express';
 
 const app = express();
 const { middleware, server } = nodeui();
@@ -62,7 +62,7 @@ app.listen(3000, '127.0.0.1', () => {
 
 ```ts
 import { Module } from '@nestjs/common';
-import { NodeUIModule } from '@nodeui/nestjs';
+import { NodeUIModule } from '@singhak/nodeui-nestjs';
 
 @Module({ imports: [NodeUIModule.register()] })
 export class AppModule {}

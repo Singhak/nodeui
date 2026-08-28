@@ -1,5 +1,5 @@
 {
-  "name": "@nodeui/nestjs",
+  "name": "@singhak/nodeui-nestjs",
   "version": "0.1.0",
   "description": "NestJS module adapter for the NodeUI developer console.",
   "license": "Apache-2.0",
@@ -47,7 +47,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@nodeui/core": "^0.1.0"
+    "@singhak/nodeui-core": "^0.1.0"
   },
   "peerDependencies": {
     "@nestjs/common": "^11.0.0",

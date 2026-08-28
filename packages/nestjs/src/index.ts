@@ -5,4 +5,4 @@
 export { NodeUIModule } from './nodeui.module';
 export { NodeUIService } from './nodeui.service';
 export { NODEUI_SERVER } from './tokens';
-export * from '@nodeui/core';
+export * from '@singhak/nodeui-core';

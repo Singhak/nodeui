@@ -6,7 +6,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "paths": {
-      "@nodeui/core": ["core/src/index.ts"]
+      "@singhak/nodeui-core": ["core/src/index.ts"]
     }
   },
   "include": ["src"]
