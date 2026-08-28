@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { NodeUIModule } from '@nodeui/nestjs';
+import { NodeUIModule } from '@singhak/nodeui-nestjs';
 import { AppController } from './app.controller';
 
 @Module({
