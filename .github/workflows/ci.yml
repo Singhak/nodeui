@@ -23,7 +23,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npm run coverage -w @nodeui/core
+      - run: npm run coverage -w @singhak/nodeui-core
 
   express-4:
     runs-on: ubuntu-latest
@@ -37,6 +37,7 @@ jobs:
       # The peer range allows Express 4 and 5, and their router internals
       # differ. Pin the workspace to Express 4 without saving so the adapter
       # and routes provider are exercised against the older router shape.
-      - run: npm install --no-save -w @nodeui/express express@4 @types/express@4
-      - run: npm test -w @nodeui/express
-      - run: npm run typecheck -w @nodeui/express
+      - run: npm install --no-save -w @singhak/nodeui-express express@4 @types/express@4
+      - run: npm test -w @singhak/nodeui-express
+      - run: npm run typecheck -w @singhak/nodeui-express
+
