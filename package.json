@@ -1,0 +1,35 @@
+{
+  "name": "nodeui-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "NodeUI — a BootUI-inspired, local-only developer console for Express and NestJS applications.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @nodeui/core && npm run build -w @nodeui/express && npm run build -w @nodeui/nestjs && npm run build -w @nodeui/ui",
+    "build:ui": "npm run build -w @nodeui/ui",
+    "build:core": "npm run build -w @nodeui/core",
+    "test": "npm run test -w @nodeui/core && npm run test -w @nodeui/express && npm run test -w @nodeui/nestjs && npm run test -w @nodeui/ui",
+    "typecheck": "npm run typecheck -w @nodeui/core && npm run typecheck -w @nodeui/express && npm run typecheck -w @nodeui/nestjs && npm run typecheck -w @nodeui/ui && npm run typecheck -w @nodeui/demo-express && npm run typecheck -w @nodeui/demo-nestjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "demo:express": "npm run dev -w @nodeui/demo-express",
+    "demo:nestjs": "npm run dev -w @nodeui/demo-nestjs",
+    "release:check": "node scripts/release-check.mjs",
+    "bench": "node scripts/bench.mjs",
+    "publish": "node scripts/publish.mjs",
+    "publish:dry-run": "node scripts/publish.mjs --dry-run"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^10.1.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.44.0"
+  }
+}

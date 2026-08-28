@@ -1,0 +1,7 @@
+node_modules
+dist
+static
+build
+coverage
+package-lock.json
+apps/ui/.vite
