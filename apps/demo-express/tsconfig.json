@@ -6,6 +6,8 @@
     "noEmit": true,
     "baseUrl": "../..",
     "paths": {
+      "@singhak/nodeui-express": ["packages/express/src/index.ts"],
+      "@singhak/nodeui-core": ["packages/core/src/index.ts"],
       "@nodeui/express": ["packages/express/src/index.ts"],
       "@nodeui/core": ["packages/core/src/index.ts"]
     }

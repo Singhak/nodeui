@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { NodeUIService } from '@nodeui/nestjs';
+import { NodeUIService } from '@singhak/nodeui-nestjs';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
