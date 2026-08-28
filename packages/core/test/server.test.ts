@@ -55,6 +55,8 @@ async function withServer(
     await fn(ctx);
   } finally {
     server.shutdown();
+    httpServer.closeAllConnections?.();
+    httpServer.closeIdleConnections?.();
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
   }
 }

@@ -29,6 +29,8 @@ async function withServer(
     await fn(base, server, httpServer);
   } finally {
     server.shutdown();
+    httpServer.closeAllConnections?.();
+    httpServer.closeIdleConnections?.();
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
   }
 }
