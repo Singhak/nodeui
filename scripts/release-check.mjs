@@ -14,7 +14,7 @@ const failures = [];
 
 for (const name of PACKAGES) {
   const pkg = pkgJson(name);
-  const fullName = `@nodeui/${name}`;
+  const fullName = `@singhak/nodeui-${name}`;
 
   if (pkg.name !== fullName) {
     failures.push(`${fullName}: "name" is "${pkg.name}"`);
@@ -38,12 +38,12 @@ for (const name of PACKAGES) {
 const core = pkgJson('core');
 for (const name of ['express', 'nestjs']) {
   const adapter = pkgJson(name);
-  const dep = adapter.dependencies?.['@nodeui/core'];
+  const dep = adapter.dependencies?.['@singhak/nodeui-core'];
   if (!dep) {
-    failures.push(`@nodeui/${name}: missing dependency on @nodeui/core`);
+    failures.push(`@singhak/nodeui-${name}: missing dependency on @singhak/nodeui-core`);
   } else if (!dep.includes(core.version)) {
     failures.push(
-      `@nodeui/${name}: dependency "@nodeui/core": "${dep}" does not match core version "${core.version}"`,
+      `@singhak/nodeui-${name}: dependency "@singhak/nodeui-core": "${dep}" does not match core version "${core.version}"`,
     );
   }
 }
@@ -59,5 +59,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log(
-  `release:check OK — @nodeui/core, @nodeui/express, @nodeui/nestjs all at v${core.version}.`,
+  `release:check OK — @singhak/nodeui-core, @singhak/nodeui-express, @singhak/nodeui-nestjs all at v${core.version}.`,
 );

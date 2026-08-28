@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import http from 'node:http';
 import express from 'express';
-import { nodeui } from '@nodeui/express';
+import { nodeui } from '@singhak/nodeui-express';
 
 const REQUESTS = 5000;
 const WARMUP = 500;
