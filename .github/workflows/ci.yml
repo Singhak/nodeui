@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20, 22]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run coverage -w @nodeui/core
+
+  express-4:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The peer range allows Express 4 and 5, and their router internals
+      # differ. Pin the workspace to Express 4 without saving so the adapter
+      # and routes provider are exercised against the older router shape.
+      - run: npm install --no-save -w @nodeui/express express@4 @types/express@4
+      - run: npm test -w @nodeui/express
+      - run: npm run typecheck -w @nodeui/express

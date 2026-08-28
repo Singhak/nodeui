@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a problem with NodeUI
+title: '[bug]: '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Do not use this form for
+        security issues — see SECURITY.md for the private reporting process.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the unexpected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal code or steps to reproduce. Include framework (Express 4/5, NestJS) and Node version.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: The `nodeui(...)` options or `NODEUI_*` env vars in use, if relevant.
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: shell
+    validations:
+      required: false
