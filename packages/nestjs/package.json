@@ -11,7 +11,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
@@ -33,11 +34,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nodeui/nodeui.git"
+    "url": "https://github.com/Singhak/nodeui.git"
   },
-  "homepage": "https://github.com/nodeui/nodeui#readme",
+  "homepage": "https://github.com/Singhak/nodeui#readme",
   "bugs": {
-    "url": "https://github.com/nodeui/nodeui/issues"
+    "url": "https://github.com/Singhak/nodeui/issues"
   },
   "scripts": {
     "prepublishOnly": "npm run build",
@@ -69,5 +70,7 @@
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
-  }
+  },
+  "author": "Anil Kumar",
+  "type": "commonjs"
 }
