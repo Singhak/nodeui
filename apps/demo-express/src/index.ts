@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import express from 'express';
 import { nodeui } from '@singhak/nodeui-express';
 
@@ -23,12 +25,17 @@ const { middleware, server, errorHandler } = nodeui({
   },
   config: {
     appName: 'demo-express',
-    version: '0.3.0',
+    version: '0.4.0',
     port,
     // masked automatically:
     DATABASE_URL: 'postgres://app:s3cret@localhost:5432/demo',
     apiToken: 'demo-token-123',
   },
+  // Query string and headers are captured by default; bodies are opt-in (masked, size-capped).
+  captureRequestDetail: { bodies: true, maxBodyBytes: 2048 },
+  // Requests, errors and queries survive a restart (try: stop the demo and start it again).
+  persist: join(tmpdir(), 'nodeui-demo-express.ndjson'),
+  slowQueryMs: 50,
   // Dependency checks shown in the Health panel.
   healthChecks: {
     postgres: async () => new Promise((resolve) => setTimeout(resolve, 12)),
@@ -47,8 +54,9 @@ const { middleware, server, errorHandler } = nodeui({
   ],
 });
 
-app.use(express.json());
+// Register NodeUI before body parsers so request bodies can be captured.
 app.use(middleware);
+app.use(express.json());
 
 app.get('/hello', (_req, res) => {
   res.json({ message: 'hello from express demo', via: 'nodeui demo' });
@@ -65,6 +73,60 @@ app.get('/users/:id', (req, res) => {
   res.json({ id: req.params.id, via: 'nodeui demo' });
 });
 
+// POST with a JSON body: open it in Requests to see the captured body, the masked
+// headers and "Copy as curl".
+app.post('/orders', (req, res) => {
+  console.log('creating order for', req.body?.customer ?? 'unknown');
+  server.recordQuery({
+    system: 'demo-db',
+    sql: 'INSERT INTO orders (customer, total) VALUES ($1, $2)',
+    durationMs: 8,
+    rowCount: 1,
+  });
+  res.status(201).json({ id: 1001, customer: req.body?.customer, token: 'order-token-xyz' });
+});
+
+// Classic N+1: one query for the list, then one per row. The Queries panel flags it
+// and the request drawer shows all of them in its timeline.
+app.get('/orders', (_req, res) => {
+  server.recordQuery({
+    system: 'demo-db',
+    sql: 'SELECT id FROM orders',
+    durationMs: 3,
+    rowCount: 6,
+  });
+  for (let id = 1; id <= 6; id++) {
+    server.recordQuery({
+      system: 'demo-db',
+      sql: `SELECT * FROM order_items WHERE order_id = ${id}`,
+      durationMs: 1.5 + id / 4,
+      rowCount: 3,
+    });
+  }
+  res.json({ orders: 6 });
+});
+
+// A statement over slowQueryMs, flagged as slow.
+app.get('/report', (_req, res) => {
+  server.recordQuery({
+    system: 'demo-db',
+    sql: 'SELECT region, sum(total) FROM orders GROUP BY region',
+    durationMs: 140,
+    rowCount: 12,
+  });
+  res.json({ rows: 12 });
+});
+
+// An outgoing call that fails, attributed to this request in the timeline.
+app.get('/flaky', async (_req, res) => {
+  try {
+    await fetch('http://127.0.0.1:9/unreachable');
+    res.json({ ok: true });
+  } catch {
+    res.status(502).json({ error: 'upstream unavailable' });
+  }
+});
+
 app.get('/slow', (_req, res) => {
   setTimeout(() => res.json({ message: 'slow response finished' }), 200);
 });
@@ -77,6 +139,11 @@ app.get('/proxy', async (_req, res) => {
 
 app.get('/boom', () => {
   throw new Error('intentional demo failure');
+});
+
+// Errors with the same shape are grouped: 42 and 43 below become one entry with a count.
+app.get('/crash/:id', (req) => {
+  throw new TypeError(`cannot read plan of customer ${req.params.id}`);
 });
 
 // Feeds the Errors panel; place it after the routes.
@@ -94,11 +161,34 @@ app.listen(port, host, () => {
 
   // DEMO_TRAFFIC=1 keeps generating requests so the panels have live data.
   if (process.env.DEMO_TRAFFIC === '1') {
-    const paths = ['/hello', '/users/42', '/slow', '/proxy', '/boom', '/hello', '/missing'];
+    const paths = [
+      '/hello',
+      '/users/42',
+      '/orders',
+      '/slow',
+      'POST /orders',
+      '/proxy',
+      '/boom',
+      '/report',
+      '/crash/42',
+      '/flaky',
+      '/users/43',
+      '/crash/43',
+      '/missing',
+    ];
     let i = 0;
     setInterval(() => {
       const path = paths[i++ % paths.length]!;
-      void fetch(base + path).catch(() => undefined);
+      const post = path.startsWith('POST ');
+      void fetch(base + path.replace('POST ', ''), {
+        method: post ? 'POST' : 'GET',
+        headers: post
+          ? { 'content-type': 'application/json', authorization: 'Bearer demo-secret' }
+          : undefined,
+        body: post
+          ? JSON.stringify({ customer: 'Ada', card: '4111-1111-1111-1111', password: 'hunter2' })
+          : undefined,
+      }).catch(() => undefined);
       if (path === '/slow') console.warn('[demo-express] slow endpoint hit');
       if (path === '/boom') console.error('[demo-express] token=abc123 failed for /boom');
     }, 250).unref();

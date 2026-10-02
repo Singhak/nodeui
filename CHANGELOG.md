@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Demos (Express, NestJS) now exercise errors, queries with an N+1 and a slow statement, failing outgoing calls, request bodies and persistence. `NodeUIService` (Nest) gained `recordQuery` and `recordError`.
 - `npm run bench` now alternates scenarios over several rounds and reports medians with spread; README numbers and overhead wording updated.
 - Text masking keeps quotes around redacted values so masked JSON-like text stays well-formed.
 - Root `package.json` is marked `private`.

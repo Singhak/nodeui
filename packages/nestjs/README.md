@@ -76,3 +76,7 @@ app.useLogger(app.get(NodeUILogger));
 
 The module also shuts the console down (stopping samplers and restoring
 `console.*`) when the Nest app closes.
+
+## Request bodies
+
+Nest parses request bodies before module middleware runs, so with `captureRequestDetail: { bodies: true }` response bodies are captured but request bodies are not (query and headers are). Capturing request bodies needs the middleware registered ahead of the parser, which Nest does not expose for module middleware.

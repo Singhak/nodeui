@@ -15,6 +15,16 @@ export class NodeUIService {
     return this.server.config;
   }
 
+  /** Records an error in the Errors panel (also done automatically for uncaught request errors). */
+  recordError(error: unknown, context?: Parameters<NodeUIServer['recordError']>[1]): void {
+    this.server.recordError(error, context);
+  }
+
+  /** Records a database query (pg and mysql2 are captured automatically). */
+  recordQuery(query: Parameters<NodeUIServer['recordQuery']>[0]): void {
+    this.server.recordQuery(query);
+  }
+
   shutdown(): void {
     this.server.shutdown();
   }
