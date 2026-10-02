@@ -375,3 +375,32 @@ describe('outgoing http tracking', () => {
     }
   });
 });
+
+describe('requests summary', () => {
+  it('computes percentiles, status buckets and per-route stats', async () => {
+    const { summarizeRequests } = await import('../src/providers/requests');
+    const mk = (path: string, status: number, durationMs: number, id: number) => ({
+      id,
+      method: 'GET',
+      path,
+      status,
+      durationMs,
+      timestampMs: 0,
+      ip: '127.0.0.1',
+    });
+    const entries = [
+      ...Array.from({ length: 18 }, (_, i) => mk(`/users/${i}`, 200, 10, i)),
+      mk('/slow', 200, 500, 100),
+      mk('/boom', 500, 20, 101),
+    ];
+    const s = summarizeRequests(entries);
+    expect(s.count).toBe(20);
+    expect(s.byStatus).toEqual({ '2xx': 19, '3xx': 0, '4xx': 0, '5xx': 1 });
+    expect(s.errorRate).toBeCloseTo(0.05);
+    expect(s.p50Ms).toBe(10);
+    expect(s.p99Ms).toBe(500);
+    expect(s.routes[0]).toMatchObject({ path: '/slow', p95Ms: 500 });
+    expect(s.routes.find((r) => r.path === '/users/:id')?.count).toBe(18);
+    expect(summarizeRequests([]).errorRate).toBe(0);
+  });
+});

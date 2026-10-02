@@ -175,9 +175,34 @@ export interface RequestEntry {
   ip: string;
 }
 
+export interface RouteStat {
+  method: string;
+  path: string;
+  count: number;
+  avgMs: number;
+  p95Ms: number;
+  errors: number;
+}
+
+export interface RequestsSummary {
+  /** Requests currently held in the ring buffer. */
+  count: number;
+  errors: number;
+  /** `errors / count` in 0..1 (5xx only). */
+  errorRate: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  p99Ms: number;
+  byStatus: { '2xx': number; '3xx': number; '4xx': number; '5xx': number };
+  /** Busiest/slowest routes, slowest p95 first (at most 8). */
+  routes: RouteStat[];
+}
+
 export interface RequestsData {
   total: number;
   entries: RequestEntry[];
+  summary: RequestsSummary;
 }
 
 export interface EnvEntry {

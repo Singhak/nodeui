@@ -6,7 +6,7 @@ export { EventLoopLagProvider, type EventLoopClock } from './event-loop';
 export { HealthProvider, type HealthCheck } from './health';
 export { OutgoingProvider, interceptOutgoing } from './outgoing';
 export { HeapSnapshotProvider } from './heap-snapshot';
-export { RequestsProvider } from './requests';
+export { RequestsProvider, summarizeRequests } from './requests';
 export { MetricsProvider } from './metrics';
 export { EnvProvider } from './env';
 export { RoutesProvider, extractRoutes } from './routes';
