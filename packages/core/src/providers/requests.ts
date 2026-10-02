@@ -80,9 +80,15 @@ export class RequestsProvider implements NodeUIProvider<RequestsData> {
     this.buffer = new RingBuffer<RequestEntry>(size);
   }
 
-  record(entry: Omit<RequestEntry, 'id'>): void {
-    this.buffer.push({ id: this.nextId, ...entry });
+  /** Reserves an id up front so in-flight work can be attributed to the request. */
+  reserveId(): number {
+    const id = this.nextId;
     this.nextId += 1;
+    return id;
+  }
+
+  record(entry: Omit<RequestEntry, 'id'>, id: number = this.reserveId()): void {
+    this.buffer.push({ id, ...entry });
   }
 
   get length(): number {

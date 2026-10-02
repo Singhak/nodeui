@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { getPanel } from '../api';
 import { MethodBadge, StatusCode } from '../components/badges';
 import {
   Card,
@@ -14,7 +15,7 @@ import { DataTable, type Column } from '../components/DataTable';
 import { Kpi } from '../components/Kpi';
 import { formatClock, formatDuration } from '../format';
 import { useTelemetry } from '../telemetry';
-import type { RequestEntry } from '../types';
+import type { OutgoingData, OutgoingRequestEntry, RequestEntry } from '../types';
 
 const CLASSES = ['2xx', '3xx', '4xx', '5xx'] as const;
 
@@ -223,6 +224,87 @@ export function RequestsView() {
   );
 }
 
+interface TimelineItem {
+  key: string;
+  at: number;
+  kind: 'outgoing' | 'log';
+  label: string;
+  detail: string;
+  failed: boolean;
+}
+
+/** Outgoing calls and log lines attributed to the request, ordered by time. */
+function buildTimeline(
+  entry: RequestEntry,
+  outgoing: readonly OutgoingRequestEntry[],
+  logs: readonly { level: string; message: string; timestamp: number; requestId?: number }[],
+): TimelineItem[] {
+  const items: TimelineItem[] = [];
+  for (const o of outgoing) {
+    if (o.requestId !== entry.id) continue;
+    items.push({
+      key: `o${o.id}`,
+      at: o.timestampMs,
+      kind: 'outgoing',
+      label: `${o.method} ${o.url}`,
+      detail: `${o.error ?? o.status ?? '—'} · ${formatDuration(o.durationMs)}`,
+      failed: Boolean(o.error) || (o.status !== null && o.status >= 500),
+    });
+  }
+  logs.forEach((l, i) => {
+    if (l.requestId !== entry.id) return;
+    items.push({
+      key: `l${i}`,
+      at: l.timestamp,
+      kind: 'log',
+      label: l.message,
+      detail: l.level,
+      failed: l.level === 'error',
+    });
+  });
+  return items.sort((a, b) => a.at - b.at);
+}
+
+function RequestTimeline({ entry }: { entry: RequestEntry }) {
+  const t = useTelemetry();
+  const [outgoing, setOutgoing] = useState<OutgoingRequestEntry[]>([]);
+  useEffect(() => {
+    let live = true;
+    // Fetching also activates the lazy outgoing sampler for later requests.
+    getPanel<OutgoingData>('/outgoing')
+      .then((d) => {
+        if (live) setOutgoing(d.entries);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [entry.id]);
+  const items = buildTimeline(entry, outgoing, t.logs?.entries ?? []);
+  return (
+    <section aria-label="Request timeline">
+      <h3>Timeline</h3>
+      {items.length === 0 ? (
+        <p className="muted-text">
+          No outgoing calls or logs were attributed to this request. They are captured only while
+          the Logs and Outgoing panels are active.
+        </p>
+      ) : (
+        <ol className="timeline">
+          {items.map((i) => (
+            <li key={i.key} className={i.failed ? 'row-failed' : undefined}>
+              <span className="mono nowrap">+{Math.max(0, i.at - entry.timestampMs)} ms</span>{' '}
+              <strong>{i.kind === 'outgoing' ? 'out' : 'log'}</strong>{' '}
+              <span className="mono wrap-anywhere">{i.label}</span>{' '}
+              <span className="muted-text">{i.detail}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
 function RequestDrawer({ entry, onClose }: { entry: RequestEntry; onClose: () => void }) {
   const [copied, setCopied] = useState<'idle' | 'ok' | 'fail'>('idle');
   const copy = async (): Promise<void> => {
@@ -242,6 +324,12 @@ function RequestDrawer({ entry, onClose }: { entry: RequestEntry; onClose: () =>
             <MethodBadge method={entry.method} />
           </dd>
         </div>
+        {entry.route ? (
+          <div>
+            <dt>Route</dt>
+            <dd className="mono wrap-anywhere">{entry.route}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Path</dt>
           <dd className="mono wrap-anywhere">{entry.path}</dd>
@@ -281,6 +369,7 @@ function RequestDrawer({ entry, onClose }: { entry: RequestEntry; onClose: () =>
         </span>
       </div>
       <pre className="curl mono">{toCurl(entry, window.location.origin)}</pre>
+      <RequestTimeline entry={entry} />
     </Drawer>
   );
 }

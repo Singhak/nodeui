@@ -2,6 +2,7 @@ import diagnosticsChannel from 'node:diagnostics_channel';
 import http from 'node:http';
 import https from 'node:https';
 import { syncBuiltinESMExports } from 'node:module';
+import { currentRequestId } from '../context';
 import { RingBuffer } from '../ring-buffer';
 import type { NodeUIProvider, OutgoingData, OutgoingRequestEntry } from '../types';
 
@@ -69,6 +70,7 @@ function wrapModule(mod: typeof http | typeof https, protocol: string): void {
       if (target && req && typeof req.once === 'function') {
         const started = process.hrtime.bigint();
         const timestampMs = Date.now();
+        const requestId = currentRequestId();
         let done = false;
         const finish = (status: number | null, error?: string): void => {
           if (done) return;
@@ -78,6 +80,7 @@ function wrapModule(mod: typeof http | typeof https, protocol: string): void {
             status,
             durationMs: Number(process.hrtime.bigint() - started) / 1e6,
             timestampMs,
+            ...(requestId !== undefined ? { requestId } : {}),
             ...(error ? { error } : {}),
           });
         };
@@ -112,7 +115,7 @@ interface UndiciRequest {
 }
 
 function subscribeUndici(): () => void {
-  const started = new WeakMap<object, { at: bigint; ts: number }>();
+  const started = new WeakMap<object, { at: bigint; ts: number; requestId?: number }>();
   const statuses = new WeakMap<object, number>();
   const target = (req: UndiciRequest): { method: string; url: string } => ({
     method: (req.method ?? 'GET').toUpperCase(),
@@ -120,7 +123,13 @@ function subscribeUndici(): () => void {
   });
   const onCreate = (message: unknown): void => {
     const request = (message as { request?: object }).request;
-    if (request) started.set(request, { at: process.hrtime.bigint(), ts: Date.now() });
+    if (request) {
+      started.set(request, {
+        at: process.hrtime.bigint(),
+        ts: Date.now(),
+        requestId: currentRequestId(),
+      });
+    }
   };
   const onHeaders = (message: unknown): void => {
     const { request, response } = message as {
@@ -141,6 +150,7 @@ function subscribeUndici(): () => void {
       status: statuses.get(request) ?? null,
       durationMs: Number(process.hrtime.bigint() - begin.at) / 1e6,
       timestampMs: begin.ts,
+      ...(begin.requestId !== undefined ? { requestId: begin.requestId } : {}),
       ...(error ? { error } : {}),
     });
   };

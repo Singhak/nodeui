@@ -233,6 +233,8 @@ export interface LogEntry {
   level: LogLevel;
   message: string;
   timestamp: number;
+  /** Id of the app request being handled when this was logged. */
+  requestId?: number;
 }
 
 export interface LogsData {
@@ -258,6 +260,8 @@ export interface OutgoingRequestEntry {
   durationMs: number;
   timestampMs: number;
   error?: string;
+  /** Id of the app request that triggered this call. */
+  requestId?: number;
 }
 
 export interface OutgoingData {

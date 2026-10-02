@@ -27,6 +27,7 @@ import { CpuProvider } from './providers/cpu';
 import { EventLoopLagProvider } from './providers/event-loop';
 import { HealthProvider } from './providers/health';
 import { HeapSnapshotProvider } from './providers/heap-snapshot';
+import { bindRequestId, runWithRequestId } from './context';
 import { StartupTracker } from './providers/startup-tracker';
 import { RequestsProvider } from './providers/requests';
 import { OutgoingProvider } from './providers/outgoing';
@@ -622,22 +623,28 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     return `${typeof r.baseUrl === 'string' ? r.baseUrl : ''}${path}` || undefined;
   }
 
-  function recordAppRequest(req: IncomingMessage, res: ServerResponse): void {
+  function recordAppRequest(req: IncomingMessage, res: ServerResponse): number {
     const started = process.hrtime.bigint();
     const timestampMs = Date.now();
+    const requestId = requestsProvider.reserveId();
+    bindRequestId(req, requestId);
     res.on('finish', () => {
       const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
-      requestsProvider.record({
-        method: req.method ?? '?',
-        path: pathnameOf(req),
-        status: res.statusCode,
-        durationMs,
-        timestampMs,
-        ip: req.socket.remoteAddress ?? 'unknown',
-        route: routePatternOf(req),
-      });
+      requestsProvider.record(
+        {
+          method: req.method ?? '?',
+          path: pathnameOf(req),
+          status: res.statusCode,
+          durationMs,
+          timestampMs,
+          ip: req.socket.remoteAddress ?? 'unknown',
+          route: routePatternOf(req),
+        },
+        requestId,
+      );
       metricsProvider.record(res.statusCode);
     });
+    return requestId;
   }
 
   const server: NodeUIServer = {
@@ -662,8 +669,8 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
           void handleNodeUIPath(req, res, urlPath);
           return;
         }
-        recordAppRequest(req, res);
-        next();
+        const requestId = recordAppRequest(req, res);
+        runWithRequestId(requestId, next);
       };
     },
     async handle(req, res): Promise<void> {

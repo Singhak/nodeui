@@ -1,4 +1,5 @@
 import { DEFAULT_LOG_SIZE } from '../constants';
+import { currentRequestId } from '../context';
 import { RingBuffer } from '../ring-buffer';
 import type { LogEntry, LogLevel, LogsData, NodeUIProvider, ProviderContext } from '../types';
 
@@ -36,7 +37,7 @@ function installWrappers(): void {
     const wrapper = (...args: unknown[]): void => {
       for (const push of pushes) {
         try {
-          push({ level, message: args.map(formatArg).join(' ') });
+          push({ level, message: args.map(formatArg).join(' '), requestId: currentRequestId() });
         } catch {
           // interception must never throw into the caller
         }
@@ -101,8 +102,13 @@ export class LogsProvider implements NodeUIProvider<LogsData> {
 
   start(): void {
     if (this.release) return;
-    this.release = interceptConsole(({ level, message }) => {
-      this.buffer.push({ level, message, timestamp: Date.now() });
+    this.release = interceptConsole(({ level, message, requestId }) => {
+      this.buffer.push({
+        level,
+        message,
+        timestamp: Date.now(),
+        ...(requestId !== undefined ? { requestId } : {}),
+      });
     });
   }
 

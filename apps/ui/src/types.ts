@@ -96,6 +96,7 @@ export interface RequestEntry {
   durationMs: number;
   timestampMs: number;
   ip: string;
+  route?: string;
 }
 
 export interface RequestsData {
@@ -148,6 +149,7 @@ export interface LogEntry {
   level: LogLevel;
   message: string;
   timestamp: number;
+  requestId?: number;
 }
 
 export interface LogsData {
@@ -172,6 +174,7 @@ export interface OutgoingRequestEntry {
   durationMs: number;
   timestampMs: number;
   error?: string;
+  requestId?: number;
 }
 
 export interface OutgoingData {

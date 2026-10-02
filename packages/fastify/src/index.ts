@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyPluginCallback, RouteOptions } from 'fastify';
 import {
   createNodeUI,
+  enterRequestContext,
   type NodeUIOptions,
   type NodeUIServer,
   type RouteEntry,
@@ -73,6 +74,8 @@ export function nodeui(options?: NodeUIOptions): NodeUIFastifyPlugin {
       if (pattern) (req.raw as { nodeuiRoute?: string }).nodeuiRoute = pattern;
       // Core's middleware records the request (finish listener) then calls next.
       recorder(req.raw, reply.raw, () => undefined);
+      // Attribute outgoing calls and logs from the route handler to this request.
+      enterRequestContext(req.raw);
     });
 
     app.addHook('onClose', (_instance, next) => {
