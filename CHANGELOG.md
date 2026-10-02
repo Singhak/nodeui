@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Documentation site on GitHub Pages (<https://singhak.github.io/nodeui/>), built with VitePress from `docs/`.
+
 ## [0.5.0] - 2026-10-02
 
 > 0.4.0 was never published to npm; its changes (listed below) ship in this release together with the 0.5.0 changes.
@@ -115,3 +119,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   route map).
 - Benchmark script (`scripts/bench.mjs`) and README benchmarks section.
 - README FAQ/troubleshooting and security & limitations sections.
+
+[Unreleased]: https://github.com/Singhak/nodeui/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Singhak/nodeui/compare/v0.3.1...v0.5.0
+[0.3.1]: https://github.com/Singhak/nodeui/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/Singhak/nodeui/releases/tag/v0.3.0
