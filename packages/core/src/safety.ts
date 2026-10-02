@@ -87,24 +87,107 @@ function ipv4ToInt(ip: string): number | null {
 }
 
 /**
- * True when `address` matches one of `allowed`, each an exact IP or an IPv4
- * CIDR (e.g. `172.17.0.0/16`, the default Docker bridge network).
+ * Parses an IPv6 literal (`::1`, `fd00::1`, `64:ff9b::1.2.3.4`, optional `%zone`)
+ * into its 128-bit value, or null when it is not valid.
+ */
+function ipv6ToBigInt(address: string): bigint | null {
+  const text = address.split('%')[0] ?? '';
+  if (!text.includes(':')) return null;
+  let head = text;
+  let tailGroups: string[] = [];
+  const doubleColon = text.indexOf('::');
+  if (doubleColon !== -1) {
+    if (text.indexOf('::', doubleColon + 1) !== -1) return null;
+    head = text.slice(0, doubleColon);
+    const tail = text.slice(doubleColon + 2);
+    tailGroups = tail === '' ? [] : tail.split(':');
+  }
+  const headGroups = doubleColon !== -1 ? (head === '' ? [] : head.split(':')) : text.split(':');
+  const groups = doubleColon !== -1 ? [...headGroups, ...tailGroups] : headGroups;
+
+  // An embedded IPv4 tail (`::ffff:1.2.3.4`) takes the place of two groups.
+  const last = groups[groups.length - 1];
+  const v4 = last?.includes('.') ? ipv4ToInt(last) : null;
+  if (last?.includes('.')) {
+    if (v4 === null) return null;
+    groups.splice(
+      groups.length - 1,
+      1,
+      ((v4 >>> 16) & 0xffff).toString(16),
+      (v4 & 0xffff).toString(16),
+    );
+  }
+  const expected = 8;
+  if (doubleColon === -1 ? groups.length !== expected : groups.length >= expected) return null;
+  const parseGroup = (g: string): bigint | null =>
+    /^[0-9a-f]{1,4}$/i.test(g) ? BigInt(`0x${g}`) : null;
+
+  const headLen = doubleColon !== -1 ? headGroups.length : groups.length;
+  const fill = expected - groups.length;
+  const full: string[] = [
+    ...groups.slice(0, headLen),
+    ...Array<string>(doubleColon !== -1 ? fill : 0).fill('0'),
+    ...groups.slice(headLen),
+  ];
+  let out = 0n;
+  for (const g of full) {
+    const n = parseGroup(g);
+    if (n === null) return null;
+    out = (out << 16n) | n;
+  }
+  return out;
+}
+
+/** True when `entry` is an exact IP or an IPv4/IPv6 CIDR that {@link matchesAddress} understands. */
+export function isValidAddressEntry(entry: string): boolean {
+  const normalized = normalizeIp(entry);
+  if (!normalized.includes('/'))
+    return ipv4ToInt(normalized) !== null || ipv6ToBigInt(normalized) !== null;
+  const [base = '', bitsRaw = ''] = normalized.split('/');
+  const bits = Number(bitsRaw);
+  if (!/^\d{1,3}$/.test(bitsRaw) || !Number.isInteger(bits)) return false;
+  if (ipv4ToInt(base) !== null) return bits <= 32;
+  return ipv6ToBigInt(base) !== null && bits <= 128;
+}
+
+/**
+ * True when `address` matches one of `allowed`, each an exact IP or a CIDR
+ * (e.g. `172.17.0.0/16`, the default Docker bridge network, or `fd00::/8`).
+ * IPv4-mapped IPv6 addresses compare as their IPv4 form; IPv6 literals compare
+ * by value, so `::1` equals `0:0:0:0:0:0:0:1`.
  */
 export function matchesAddress(address: string | undefined, allowed: readonly string[]): boolean {
   if (!address) return false;
   const ip = normalizeIp(address);
-  for (const entry of allowed) {
+  const ip4 = ipv4ToInt(ip);
+  const ip6 = ip4 === null ? ipv6ToBigInt(ip) : null;
+  for (const raw of allowed) {
+    const entry = normalizeIp(raw);
     if (!entry.includes('/')) {
-      if (normalizeIp(entry) === ip) return true;
+      if (entry === ip) return true;
+      const e4 = ipv4ToInt(entry);
+      if (ip4 !== null && e4 !== null) {
+        if (ip4 === e4) return true;
+        continue;
+      }
+      const e6 = ipv6ToBigInt(entry);
+      if (ip6 !== null && e6 !== null && ip6 === e6) return true;
       continue;
     }
-    const [base, bitsRaw] = entry.split('/');
+    const [base = '', bitsRaw = ''] = entry.split('/');
+    if (!/^\d{1,3}$/.test(bitsRaw)) continue;
     const bits = Number(bitsRaw);
-    const a = ipv4ToInt(ip);
-    const b = ipv4ToInt(base ?? '');
-    if (a === null || b === null || !Number.isInteger(bits) || bits < 0 || bits > 32) continue;
-    const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
-    if ((a & mask) >>> 0 === (b & mask) >>> 0) return true;
+    const b4 = ipv4ToInt(base);
+    if (b4 !== null) {
+      if (ip4 === null || bits > 32) continue;
+      const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+      if ((ip4 & mask) >>> 0 === (b4 & mask) >>> 0) return true;
+      continue;
+    }
+    const b6 = ipv6ToBigInt(base);
+    if (b6 === null || ip6 === null || bits > 128) continue;
+    const shift = BigInt(128 - bits);
+    if (ip6 >> shift === b6 >> shift) return true;
   }
   return false;
 }

@@ -13,6 +13,8 @@ type AnyFn = (...args: unknown[]) => unknown;
 
 const recorders = new Set<Recorder>();
 const originals = new Map<string, AnyFn>();
+/** Installed wrappers, so unwrap only removes ours and can retire a buried one. */
+const installed = new Map<string, { fn: AnyFn; state: { live: boolean } }>();
 let undiciUnsubscribe: (() => void) | null = null;
 
 function describeTarget(
@@ -64,9 +66,11 @@ function wrapModule(mod: typeof http | typeof https, protocol: string): void {
     const key = `${protocol}${name}`;
     const original = mod[name] as unknown as AnyFn;
     originals.set(key, original);
+    const state = { live: true };
     const wrapped = function (this: unknown, ...args: unknown[]): unknown {
       const req = original.apply(this, args) as http.ClientRequest;
-      const target = recorders.size > 0 && !isSuppressed() ? describeTarget(protocol, args) : null;
+      const target =
+        state.live && recorders.size > 0 && !isSuppressed() ? describeTarget(protocol, args) : null;
       if (target && req && typeof req.once === 'function') {
         const started = process.hrtime.bigint();
         const timestampMs = Date.now();
@@ -93,6 +97,7 @@ function wrapModule(mod: typeof http | typeof https, protocol: string): void {
       }
       return req;
     };
+    installed.set(key, { fn: wrapped, state });
     (mod as unknown as Record<string, AnyFn>)[name] = wrapped;
   }
   // ESM consumers (`import { request } from 'node:http'`) only see the patch after a sync.
@@ -101,9 +106,17 @@ function wrapModule(mod: typeof http | typeof https, protocol: string): void {
 
 function unwrapModule(mod: typeof http | typeof https, protocol: string): void {
   for (const name of ['request', 'get'] as const) {
-    const original = originals.get(`${protocol}${name}`);
-    if (original) (mod as unknown as Record<string, AnyFn>)[name] = original;
-    originals.delete(`${protocol}${name}`);
+    const key = `${protocol}${name}`;
+    const original = originals.get(key);
+    const ours = installed.get(key);
+    const target = mod as unknown as Record<string, AnyFn>;
+    // Another layer (OpenTelemetry, Sentry, an APM agent) may have wrapped on top of
+    // ours; restoring blindly would drop its wrapper. Restore only if ours is still on
+    // top, otherwise leave the chain intact and make our wrapper a passthrough.
+    if (original && ours && target[name] === ours.fn) target[name] = original;
+    if (ours) ours.state.live = false;
+    originals.delete(key);
+    installed.delete(key);
   }
   syncBuiltinESMExports();
 }

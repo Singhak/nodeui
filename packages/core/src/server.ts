@@ -22,6 +22,7 @@ import {
   maskSecrets,
   resolveActivation,
   SECRET_KEY_PATTERN,
+  isValidAddressEntry,
 } from './safety';
 import { AUTH_COOKIE, createGuard } from './guard';
 import { ConfirmationStore } from './confirmations';
@@ -81,6 +82,14 @@ export interface NodeUIOptions {
    * version control.
    */
   persist?: string | { file: string; maxBytes?: number };
+  /**
+   * When the outgoing-call, query and log instrumentation runs. `'always'`
+   * (default) records from startup, so you can open the console after a problem
+   * and still see what led to it. `'lazy'` installs the hooks only while a panel
+   * is open and removes them after `inactivityTimeoutMs`, for zero cost when
+   * nobody is looking (or `NODEUI_CAPTURE=lazy`). Buffers are bounded either way.
+   */
+  capture?: 'always' | 'lazy';
   /**
    * Export requests, outgoing calls and queries as OTLP/HTTP JSON spans to a
    * collector (or `NODEUI_OTLP_ENDPOINT`). Off by default. Enabling it keeps
@@ -246,6 +255,17 @@ function normalizePath(value: string): string {
   return trimmed.replace(/\/+$/, '') || '/';
 }
 
+function resolveCapture(
+  option: 'always' | 'lazy' | undefined,
+  env: string | undefined,
+): 'always' | 'lazy' {
+  const value = option ?? env ?? 'always';
+  if (value !== 'always' && value !== 'lazy') {
+    throw new Error(`nodeui capture must be 'always' or 'lazy', got "${String(value)}"`);
+  }
+  return value;
+}
+
 function positiveInt(value: number | undefined, fallback: number, name: string): number {
   const n = value === undefined ? fallback : value;
   if (!Number.isInteger(n) || n <= 0) throw new Error(`${name} must be a positive integer`);
@@ -289,6 +309,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     enabled: activation.active,
     activationReason: activation.reason,
     maskSecrets: options.maskSecrets ?? true,
+    capture: resolveCapture(options.capture, env.NODEUI_CAPTURE),
     persistFile:
       (typeof options.persist === 'string' ? options.persist : options.persist?.file) ??
       env.NODEUI_PERSIST_FILE ??
@@ -352,6 +373,16 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       '[nodeui] running with NODE_ENV=production. The console exposes environment, logs and ' +
         'heap data; keep it behind loopback and an auth token.',
     );
+  }
+  if (config.enabled) {
+    for (const entry of config.allowedRemoteAddresses) {
+      if (!isValidAddressEntry(entry)) {
+        console.warn(
+          `[nodeui] ignoring allowedRemoteAddresses entry "${entry}": expected an IP or a ` +
+            'CIDR such as 172.16.0.0/12 or fd00::/8; it will never match.',
+        );
+      }
+    }
   }
   if (config.enabled && !config.maskSecrets) {
     console.warn('[nodeui] secret masking is disabled; panels may show credentials.');
@@ -447,10 +478,16 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       exporter?.query(e);
     };
     errorsProvider.onRecord = (e) => save('error', e);
-    for (const provider of [outgoingProvider, queriesProvider]) {
-      provider.start();
-      pinned.add(provider.id);
-    }
+  }
+  // Sinks need the outgoing/query hooks running; `capture: 'always'` also pins logs.
+  const pinnedProviders: Array<NodeUIProvider> = [];
+  if (persistence || exporter || (config.enabled && config.capture === 'always')) {
+    pinnedProviders.push(outgoingProvider, queriesProvider);
+  }
+  if (config.enabled && config.capture === 'always') pinnedProviders.push(logsProvider);
+  for (const provider of pinnedProviders) {
+    provider.start?.(ctx);
+    pinned.add(provider.id);
   }
 
   const pluginMeta: Array<{ id: PanelId; title: string }> = [];

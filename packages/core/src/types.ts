@@ -52,6 +52,8 @@ export interface NodeUIConfig {
   maskSecrets: boolean;
   /** What extra request detail is recorded. */
   requestDetail: Required<RequestDetailOptions>;
+  /** `'always'` runs outgoing/query/log capture from startup; `'lazy'` only while a panel is open. */
+  capture: 'always' | 'lazy';
   /** Journal file for persisting recent activity across restarts, or null. */
   persistFile: string | null;
   /** Rotation threshold for the journal. */
