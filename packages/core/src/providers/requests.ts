@@ -35,7 +35,7 @@ export function summarizeRequests(entries: readonly RequestEntry[]): RequestsSum
   for (const e of entries) {
     const bucket = `${Math.floor(e.status / 100)}xx` as keyof typeof byStatus;
     if (bucket in byStatus) byStatus[bucket] += 1;
-    const path = routeKey(e.path);
+    const path = e.route ?? routeKey(e.path);
     const key = `${e.method} ${path}`;
     const group = groups.get(key) ?? { method: e.method, path, ms: [], errors: 0 };
     group.ms.push(e.durationMs);

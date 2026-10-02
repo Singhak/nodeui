@@ -61,6 +61,19 @@ describe('@singhak/nodeui-express', () => {
     server.shutdown();
   });
 
+  it('records the matched route pattern for parameterised routes', async () => {
+    const { app, server } = makeApp();
+    app.get('/users/:name', (_req, res) => {
+      res.json({ ok: true });
+    });
+    await request(app).get('/users/alice');
+    await request(app).get('/users/bob');
+    const res = await request(app).get('/nodeui/api/requests');
+    expect(res.body.data.entries.map((e) => e.route)).toEqual(['/users/:name', '/users/:name']);
+    expect(res.body.data.summary.routes[0].path).toBe('/users/:name');
+    server.shutdown();
+  });
+
   it('fails closed in production', async () => {
     const { app, server } = makeApp({ env: { NODE_ENV: 'production' } });
     const consoleRes = await request(app).get('/nodeui/api/config');

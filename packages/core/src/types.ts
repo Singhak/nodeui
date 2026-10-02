@@ -173,6 +173,8 @@ export interface RequestEntry {
   durationMs: number;
   timestampMs: number;
   ip: string;
+  /** Matched route pattern (e.g. `/users/:id`) when the framework exposes it. */
+  route?: string;
 }
 
 export interface RouteStat {

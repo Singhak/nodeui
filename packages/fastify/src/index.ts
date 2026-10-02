@@ -66,6 +66,11 @@ export function nodeui(options?: NodeUIOptions): NodeUIFastifyPlugin {
         await server.handle(req.raw, reply.raw);
         return;
       }
+      // Expose the matched route pattern to core's request recorder.
+      const pattern =
+        (req as { routeOptions?: { url?: string } }).routeOptions?.url ??
+        (req as { routerPath?: string }).routerPath;
+      if (pattern) (req.raw as { nodeuiRoute?: string }).nodeuiRoute = pattern;
       // Core's middleware records the request (finish listener) then calls next.
       recorder(req.raw, reply.raw, () => undefined);
     });

@@ -377,3 +377,16 @@ describe('RequestsProvider', () => {
     expect(result.data.entries[0]?.path).toBe('/r150');
   });
 });
+
+describe('summarizeRequests route patterns', () => {
+  it('groups by matched route pattern when provided', async () => {
+    const { summarizeRequests } = await import('../src/providers/requests');
+    const base = { method: 'GET', status: 200, durationMs: 5, timestampMs: 0, ip: '::1' };
+    const summary = summarizeRequests([
+      { id: 1, path: '/users/alice', route: '/users/:name', ...base },
+      { id: 2, path: '/users/bob', route: '/users/:name', ...base },
+    ]);
+    expect(summary.routes).toHaveLength(1);
+    expect(summary.routes[0]).toMatchObject({ path: '/users/:name', count: 2 });
+  });
+});

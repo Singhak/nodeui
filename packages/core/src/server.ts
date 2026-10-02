@@ -609,6 +609,19 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     }
   }
 
+  /** Matched route pattern: Express exposes `req.route`, adapters may set `nodeuiRoute`. */
+  function routePatternOf(req: IncomingMessage): string | undefined {
+    const r = req as IncomingMessage & {
+      nodeuiRoute?: unknown;
+      route?: { path?: unknown };
+      baseUrl?: unknown;
+    };
+    if (typeof r.nodeuiRoute === 'string') return r.nodeuiRoute;
+    const path = r.route?.path;
+    if (typeof path !== 'string') return undefined;
+    return `${typeof r.baseUrl === 'string' ? r.baseUrl : ''}${path}` || undefined;
+  }
+
   function recordAppRequest(req: IncomingMessage, res: ServerResponse): void {
     const started = process.hrtime.bigint();
     const timestampMs = Date.now();
@@ -621,6 +634,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
         durationMs,
         timestampMs,
         ip: req.socket.remoteAddress ?? 'unknown',
+        route: routePatternOf(req),
       });
       metricsProvider.record(res.statusCode);
     });
