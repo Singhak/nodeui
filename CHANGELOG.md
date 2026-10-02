@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Redesigned console: sidebar navigation, health-first Overview with KPI tiles and charts
+  (axes, units, hover values), light/dark themes, pause/resume, sortable and filterable
+  Requests/Outgoing tables with a detail drawer (Copy as curl), accessible keyboard navigation.
+- `/api/requests` now includes a `summary` (p50/p95/p99, error rate, status buckets, per-route stats).
+
+### Fixed
+
+- `/config` reported its lock state under a key that the masker redacted, so the UI always showed
+  the lock badge; the field is now `locked`.
+- Plugin panels mounted after the live stream opened never received data.
+- Demos use a curated environment, health checks, a plugin panel and optional generated traffic
+  (`DEMO_TRAFFIC=1`).
+
 ## [0.3.0]
 
 ### Security

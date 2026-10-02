@@ -84,11 +84,19 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 
 ## 📸 What It Looks Like
 
-The Express demo (`apps/demo-express`) running with generated traffic, showing health with dependency checks, requests, outgoing calls, masked environment values, logs and a custom **Job Queue** plugin panel:
+The Express demo (`apps/demo-express`) running with generated traffic. The **Overview** answers "is the app healthy right now?" with KPI tiles (status, uptime, req/s, error rate, p95, heap, CPU, event-loop lag), live charts with hover values, status-code breakdown, slowest routes, dependency checks and recent errors.
 
-![NodeUI console running against the Express demo](docs/screenshots/console-full.png)
+![NodeUI Overview (dark)](docs/screenshots/overview-dark.png)
 
-Notice that `DATABASE_URL`, `JWT_SECRET` and `STRIPE_API_KEY` are shown as `[REDACTED]`, and that the log line `token=abc123` was scrubbed to `token=[REDACTED]`.
+Light theme (follows your OS setting, with a toggle in the header):
+
+![NodeUI Overview (light)](docs/screenshots/overview-light.png)
+
+**Requests** view: p50/p95/p99, error rate, status/method filters, search, sortable columns and a detail drawer with _Copy as curl_.
+
+![NodeUI Requests](docs/screenshots/requests.png)
+
+Notice that secrets are masked everywhere: `DATABASE_URL`, `JWT_SECRET` and `STRIPE_API_KEY` show as `[REDACTED]`, and the log line `token=abc123` is scrubbed to `token=[REDACTED]`. Use the sidebar to switch between Overview, Requests, Outgoing, Logs, Environment, Routes, Runtime and your own plugin panels; the Pause button freezes the display so you can read it.
 
 ---
 
