@@ -72,10 +72,10 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 
 | Package                                       | Version  | Description                                                                            |
 | :-------------------------------------------- | :------- | :------------------------------------------------------------------------------------- |
-| [`@singhak/nodeui-core`](packages/core)       | `v0.3.0` | Framework-neutral observability engine, REST/SSE provider registry, static SPA server. |
-| [`@singhak/nodeui-express`](packages/express) | `v0.3.0` | Middleware adapter for Express applications.                                           |
-| [`@singhak/nodeui-fastify`](packages/fastify) | `v0.3.0` | Plugin adapter for Fastify 4 / 5 applications.                                         |
-| [`@singhak/nodeui-nestjs`](packages/nestjs)   | `v0.3.0` | Dynamic module adapter for NestJS applications.                                        |
+| [`@singhak/nodeui-core`](packages/core)       | `v0.3.1` | Framework-neutral observability engine, REST/SSE provider registry, static SPA server. |
+| [`@singhak/nodeui-express`](packages/express) | `v0.3.1` | Middleware adapter for Express applications.                                           |
+| [`@singhak/nodeui-fastify`](packages/fastify) | `v0.3.1` | Plugin adapter for Fastify 4 / 5 applications.                                         |
+| [`@singhak/nodeui-nestjs`](packages/nestjs)   | `v0.3.1` | Dynamic module adapter for NestJS applications.                                        |
 | [`apps/ui`](apps/ui)                          | —        | React + Vite single-page console embedded into core static build.                      |
 | [`apps/demo-express`](apps/demo-express)      | —        | Sandbox Express verification server.                                                   |
 | [`apps/demo-nestjs`](apps/demo-nestjs)        | —        | Sandbox NestJS verification server.                                                    |
