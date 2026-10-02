@@ -24,6 +24,7 @@ export const config = {
     'metrics',
     'outgoing',
     'errors',
+    'queries',
     'queue',
   ],
   masking: { enabled: true, pattern: 'TOKEN|KEY|SECRET|PASSWORD' },
@@ -183,6 +184,52 @@ export const outgoing = {
   ],
 };
 
+export const queries = {
+  total: 8,
+  failed: 1,
+  slow: 1,
+  nPlusOneGroups: 1,
+  slowQueryMs: 100,
+  entries: [
+    {
+      id: 1,
+      system: 'pg',
+      sql: 'SELECT * FROM users WHERE id = $1',
+      durationMs: 4,
+      timestampMs: at(10, 0, 1),
+      rowCount: 1,
+      requestId: 3,
+    },
+    {
+      id: 2,
+      system: 'pg',
+      sql: 'SELECT * FROM orders WHERE total > 100',
+      durationMs: 240,
+      timestampMs: at(10, 0, 2),
+      rowCount: 55,
+      slow: true,
+    },
+    {
+      id: 3,
+      system: 'prisma',
+      sql: 'SELECT * FROM posts WHERE user_id = 7',
+      durationMs: 2,
+      timestampMs: at(10, 0, 3),
+      requestId: 4,
+      nPlusOne: true,
+      repeats: 6,
+    },
+    {
+      id: 4,
+      system: 'mysql2',
+      sql: 'SELEC oops',
+      durationMs: 1,
+      timestampMs: at(10, 0, 4),
+      error: 'ER_PARSE_ERROR',
+    },
+  ],
+};
+
 export const errors = {
   total: 3,
   groups: [
@@ -226,6 +273,7 @@ export function defaultPayloads(): Record<string, unknown> {
     '/logs': logs,
     '/outgoing': outgoing,
     '/errors': errors,
+    '/queries': queries,
     '/queue': { depth: 7 },
   });
 }

@@ -12,6 +12,7 @@ export type PanelId =
   | 'metrics'
   | 'outgoing'
   | 'errors'
+  | 'queries'
   | (string & {});
 
 export type Envelope<T> =
@@ -182,6 +183,29 @@ export interface OutgoingRequestEntry {
   timestampMs: number;
   error?: string;
   requestId?: number;
+}
+
+export interface QueryEntry {
+  id: number;
+  system: string;
+  sql: string;
+  durationMs: number;
+  timestampMs: number;
+  rowCount?: number;
+  error?: string;
+  requestId?: number;
+  slow?: boolean;
+  nPlusOne?: boolean;
+  repeats?: number;
+}
+
+export interface QueriesData {
+  total: number;
+  failed: number;
+  slow: number;
+  nPlusOneGroups: number;
+  slowQueryMs: number;
+  entries: QueryEntry[];
 }
 
 export interface ErrorGroup {

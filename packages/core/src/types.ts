@@ -19,7 +19,8 @@ export type BuiltInPanelId =
   | 'logs'
   | 'metrics'
   | 'outgoing'
-  | 'errors';
+  | 'errors'
+  | 'queries';
 
 /**
  * Panel identifier. Built-in panels are listed in {@link BuiltInPanelId};
@@ -297,6 +298,34 @@ export interface OutgoingRequestEntry {
   error?: string;
   /** Id of the app request that triggered this call. */
   requestId?: number;
+}
+
+export interface QueryEntry {
+  id: number;
+  /** Driver or ORM the query came from, e.g. `pg`, `mysql2`, `prisma`. */
+  system: string;
+  /** Statement text. Parameter values are never recorded. */
+  sql: string;
+  durationMs: number;
+  timestampMs: number;
+  rowCount?: number;
+  error?: string;
+  /** Id of the app request that issued the query. */
+  requestId?: number;
+  /** At or above the configured `slowQueryMs`. */
+  slow?: boolean;
+  /** Same statement repeated within one request (N+1 suspect). */
+  nPlusOne?: boolean;
+  repeats?: number;
+}
+
+export interface QueriesData {
+  total: number;
+  failed: number;
+  slow: number;
+  nPlusOneGroups: number;
+  slowQueryMs: number;
+  entries: QueryEntry[];
 }
 
 export type ErrorSource = 'request' | 'uncaught' | 'rejection' | 'manual';

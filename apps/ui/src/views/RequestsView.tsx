@@ -15,7 +15,13 @@ import { DataTable, type Column } from '../components/DataTable';
 import { Kpi } from '../components/Kpi';
 import { formatClock, formatDuration } from '../format';
 import { useTelemetry } from '../telemetry';
-import type { OutgoingData, OutgoingRequestEntry, RequestEntry } from '../types';
+import type {
+  OutgoingData,
+  OutgoingRequestEntry,
+  QueriesData,
+  QueryEntry,
+  RequestEntry,
+} from '../types';
 
 const CLASSES = ['2xx', '3xx', '4xx', '5xx'] as const;
 
@@ -288,7 +294,7 @@ export function RequestsView() {
 interface TimelineItem {
   key: string;
   at: number;
-  kind: 'outgoing' | 'log';
+  kind: 'outgoing' | 'log' | 'query';
   label: string;
   detail: string;
   failed: boolean;
@@ -299,8 +305,20 @@ function buildTimeline(
   entry: RequestEntry,
   outgoing: readonly OutgoingRequestEntry[],
   logs: readonly { level: string; message: string; timestamp: number; requestId?: number }[],
+  queries: readonly QueryEntry[] = [],
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
+  for (const q of queries) {
+    if (q.requestId !== entry.id) continue;
+    items.push({
+      key: `q${q.id}`,
+      at: q.timestampMs,
+      kind: 'query',
+      label: q.sql,
+      detail: `${q.system} \u00b7 ${q.error ?? formatDuration(q.durationMs)}${q.nPlusOne ? ' \u00b7 N+1' : ''}`,
+      failed: Boolean(q.error),
+    });
+  }
   for (const o of outgoing) {
     if (o.requestId !== entry.id) continue;
     items.push({
@@ -329,8 +347,14 @@ function buildTimeline(
 function RequestTimeline({ entry }: { entry: RequestEntry }) {
   const t = useTelemetry();
   const [outgoing, setOutgoing] = useState<OutgoingRequestEntry[]>([]);
+  const [queries, setQueries] = useState<QueryEntry[]>([]);
   useEffect(() => {
     let live = true;
+    getPanel<QueriesData>('/queries')
+      .then((d) => {
+        if (live) setQueries(d.entries);
+      })
+      .catch(() => undefined);
     // Fetching also activates the lazy outgoing sampler for later requests.
     getPanel<OutgoingData>('/outgoing')
       .then((d) => {
@@ -341,21 +365,21 @@ function RequestTimeline({ entry }: { entry: RequestEntry }) {
       live = false;
     };
   }, [entry.id]);
-  const items = buildTimeline(entry, outgoing, t.logs?.entries ?? []);
+  const items = buildTimeline(entry, outgoing, t.logs?.entries ?? [], queries);
   return (
     <section aria-label="Request timeline">
       <h3>Timeline</h3>
       {items.length === 0 ? (
         <p className="muted-text">
-          No outgoing calls or logs were attributed to this request. They are captured only while
-          the Logs and Outgoing panels are active.
+          No outgoing calls, queries or logs were attributed to this request. They are captured only
+          while their panels are active.
         </p>
       ) : (
         <ol className="timeline">
           {items.map((i) => (
             <li key={i.key} className={i.failed ? 'row-failed' : undefined}>
               <span className="mono nowrap">+{Math.max(0, i.at - entry.timestampMs)} ms</span>{' '}
-              <strong>{i.kind === 'outgoing' ? 'out' : 'log'}</strong>{' '}
+              <strong>{i.kind === 'outgoing' ? 'out' : i.kind === 'query' ? 'sql' : 'log'}</strong>{' '}
               <span className="mono wrap-anywhere">{i.label}</span>{' '}
               <span className="muted-text">{i.detail}</span>
             </li>

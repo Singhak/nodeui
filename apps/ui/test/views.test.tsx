@@ -17,6 +17,35 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('Queries view', () => {
+  beforeEach(() => resetEnv('#/queries'));
+
+  it('shows flags, filters and a statement drawer', async () => {
+    render(<App />);
+    await waitFor(() => expect(screen.getByText(/FROM orders/)).toBeInTheDocument());
+    expect(screen.getByText(/8 total · 1 slow \(≥ 100 ms\) · 1 N\+1 group/)).toBeInTheDocument();
+    expect(screen.getByText('slow')).toBeInTheDocument();
+    expect(screen.getByText(/N\+1 ×6/)).toBeInTheDocument();
+    expect(screen.getByText('SELEC oops').closest('tr')).toHaveClass('row-failed');
+
+    fireEvent.click(screen.getByRole('button', { name: /slow only/ }));
+    expect(screen.queryByText(/FROM users/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /slow only/ }));
+    fireEvent.click(screen.getByRole('button', { name: /N\+1 suspects/ }));
+    expect(screen.queryByText(/FROM orders/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/FROM posts/));
+    const dialog = await screen.findByRole('dialog', { name: 'Query details' });
+    expect(within(dialog).getByText(/Repeated 6×/)).toBeInTheDocument();
+  });
+
+  it('shows an empty state with setup help', async () => {
+    payloads['/queries'] = { ...(payloads['/queries'] as object), entries: [], total: 0 };
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('No queries to show')).toBeInTheDocument());
+    expect(screen.getByText(/trackPrisma/)).toBeInTheDocument();
+  });
+});
+
 describe('Errors view', () => {
   beforeEach(() => resetEnv('#/errors'));
 

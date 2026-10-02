@@ -11,6 +11,7 @@ import { ErrorsView } from './views/ErrorsView';
 import { EnvView, LogsView, RoutesView } from './views/ListViews';
 import { OutgoingView } from './views/OutgoingView';
 import { Overview } from './views/Overview';
+import { QueriesView } from './views/QueriesView';
 import { RequestsView } from './views/RequestsView';
 import { RuntimeView } from './views/RuntimeView';
 
@@ -37,6 +38,7 @@ const BUILT_IN_IDS = [
   'metrics',
   'outgoing',
   'errors',
+  'queries',
 ];
 
 export function buildNav(config: ConfigData | null): NavItem[] {
@@ -60,6 +62,14 @@ export function buildNav(config: ConfigData | null): NavItem[] {
       icon: '⇡',
       group: 'main',
       segments: ['outgoing'],
+    });
+  if (has('queries'))
+    items.push({
+      id: 'queries',
+      title: 'Queries',
+      icon: '⛁',
+      group: 'main',
+      segments: ['queries'],
     });
   if (has('errors'))
     items.push({
@@ -234,6 +244,7 @@ function Shell({ config }: { config: ConfigData }) {
   } else if (view === 'overview') body = <Overview />;
   else if (view === 'requests') body = <RequestsView />;
   else if (view === 'outgoing') body = <OutgoingView intervalMs={interval} />;
+  else if (view === 'queries') body = <QueriesView intervalMs={interval} />;
   else if (view === 'errors') body = <ErrorsView intervalMs={interval} />;
   else if (view === 'logs') body = <LogsView intervalMs={interval} />;
   else if (view === 'env') body = <EnvView intervalMs={interval} />;

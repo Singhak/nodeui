@@ -28,12 +28,13 @@ import { CpuProvider } from './providers/cpu';
 import { EventLoopLagProvider } from './providers/event-loop';
 import { HealthProvider } from './providers/health';
 import { HeapSnapshotProvider } from './providers/heap-snapshot';
-import { bindRequestId, runWithRequestId } from './context';
+import { bindRequestId, currentRequestId, runWithRequestId } from './context';
 import { captureRequestDetail, resolveRequestDetail } from './request-detail';
 import { StartupTracker } from './providers/startup-tracker';
 import { RequestsProvider } from './providers/requests';
 import { OutgoingProvider } from './providers/outgoing';
 import { ErrorsProvider } from './providers/errors';
+import { QueriesProvider } from './providers/queries';
 import type { HealthCheck } from './providers/health';
 import { MetricsProvider, LogsProvider, EnvProvider, RoutesProvider } from './providers';
 
@@ -94,6 +95,10 @@ export interface NodeUIOptions {
   healthChecks?: Record<string, HealthCheck>;
   /** Max recorded outgoing HTTP calls. Default 200. */
   outgoingLogSize?: number;
+  /** Max recorded database queries. Default 200. */
+  queryLogSize?: number;
+  /** Queries at or above this duration are flagged slow. Default 100 ms. */
+  slowQueryMs?: number;
 }
 
 export interface NodeUIServer {
@@ -115,6 +120,24 @@ export interface NodeUIServer {
   isProviderActive(id: PanelId): boolean;
   /** Pushes an external log entry into the log viewer (logger adapter). */
   addLogSource(entry: { level: LogLevel; message: string }): void;
+  /**
+   * Records a database query from an ORM or driver hook that NodeUI does not
+   * patch itself (Sequelize `logging`, TypeORM logger, ...). Parameters are not recorded.
+   */
+  recordQuery(query: {
+    system: string;
+    sql: string;
+    durationMs: number;
+    rowCount?: number;
+    error?: string;
+  }): void;
+  /**
+   * Subscribes to a Prisma client's query events. Create the client with
+   * `log: [{ emit: 'event', level: 'query' }]`.
+   */
+  trackPrisma(client: {
+    $on(event: 'query', cb: (e: { query: string; duration: number | bigint }) => void): void;
+  }): void;
   /**
    * Records a handled error (e.g. from a framework error hook) so it appears in
    * the Errors panel, attributed to the current request when there is one.
@@ -156,6 +179,7 @@ const BUILT_IN_PANELS = new Set<string>([
   'metrics',
   'outgoing',
   'errors',
+  'queries',
 ]);
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const RESERVED_API_NAMES = new Set(['config', 'live', 'confirmations']);
@@ -325,6 +349,12 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   registry.register(
     new OutgoingProvider(positiveInt(options.outgoingLogSize, 200, 'outgoingLogSize')),
   );
+
+  const queriesProvider = new QueriesProvider({
+    size: positiveInt(options.queryLogSize, 200, 'queryLogSize'),
+    slowQueryMs: positiveInt(options.slowQueryMs, 100, 'slowQueryMs'),
+  });
+  registry.register(queriesProvider);
 
   const errorsProvider = new ErrorsProvider();
   registry.register(errorsProvider);
@@ -722,6 +752,21 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     },
     addLogSource(entry: { level: LogLevel; message: string }): void {
       logsProvider.addSource(entry);
+    },
+    recordQuery(query): void {
+      if (!config.enabled) return;
+      queriesProvider.record({
+        ...query,
+        sql: query.sql.slice(0, 2000),
+        timestampMs: Date.now() - query.durationMs,
+        requestId: currentRequestId(),
+      });
+    },
+    trackPrisma(client): void {
+      if (!config.enabled) return;
+      client.$on('query', (e) =>
+        server.recordQuery({ system: 'prisma', sql: e.query, durationMs: Number(e.duration) }),
+      );
     },
     recordError(error, context): void {
       if (!config.enabled) return;
