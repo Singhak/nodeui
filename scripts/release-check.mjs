@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 
-const ADAPTERS = ['express', 'fastify', 'nestjs', 'koa', 'hapi', 'hono', 'http'];
+const ADAPTERS = ['express', 'fastify', 'nestjs', 'koa', 'hapi', 'hono', 'http', 'cli'];
 const PACKAGES = ['core', ...ADAPTERS];
 
 const pkgJson = (name) =>

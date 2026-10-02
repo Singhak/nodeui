@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `@singhak/nodeui-cli`: `nodeui attach -- <command>` runs any Node app with the console attached via a preload (no code changes), and `nodeui dashboard name=url …` shows several consoles on one loopback page with a proxy to each.
 - `uiAssetsDir()` exported from core: the directory of the bundled console, for serving it from your own host or gateway.
 
 ## [0.4.0] - 2026-10-02

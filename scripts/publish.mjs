@@ -16,6 +16,7 @@ const PACKAGES = [
   ['@singhak/nodeui-hapi', 'hapi'],
   ['@singhak/nodeui-hono', 'hono'],
   ['@singhak/nodeui-http', 'http'],
+  ['@singhak/nodeui-cli', 'cli'],
 ];
 
 const version = JSON.parse(
@@ -47,7 +48,7 @@ for (const [name] of PACKAGES) {
 
 const tagCommand = `git tag v${version} && git push origin v${version}`;
 console.log(
-  `\n${dryRun ? 'Dry run complete' : 'Published'}: @singhak/nodeui-{core,express,fastify,nestjs,koa,hapi,hono,http}@${version}.`,
+  `\n${dryRun ? 'Dry run complete' : 'Published'}: @singhak/nodeui-{core,express,fastify,nestjs,koa,hapi,hono,http,cli}@${version}.`,
 );
 console.log(`CHANGELOG.md has a [${version}] section.`);
 console.log(

@@ -1,0 +1,61 @@
+{
+  "name": "@singhak/nodeui-cli",
+  "version": "0.4.0",
+  "description": "NodeUI command line: attach the console to any Node app without code changes, a multi-service dashboard, and an MCP server for AI agents.",
+  "license": "Apache-2.0",
+  "bin": {
+    "nodeui": "./dist/cli.cjs"
+  },
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "cli",
+    "npx",
+    "developer-tools",
+    "observability",
+    "debugging",
+    "mcp",
+    "nodejs"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Singhak/nodeui.git"
+  },
+  "homepage": "https://github.com/Singhak/nodeui#readme",
+  "bugs": {
+    "url": "https://github.com/Singhak/nodeui/issues"
+  },
+  "scripts": {
+    "prepublishOnly": "npm run build",
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@singhak/nodeui-core": "^0.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "author": "Anil Kumar",
+  "type": "commonjs"
+}

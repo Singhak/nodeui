@@ -20,11 +20,11 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @singhak/nodeui-core && npm run build -w @singhak/nodeui-express && npm run build -w @singhak/nodeui-fastify && npm run build -w @singhak/nodeui-nestjs && npm run build -w @singhak/nodeui-koa && npm run build -w @singhak/nodeui-hapi && npm run build -w @singhak/nodeui-hono && npm run build -w @singhak/nodeui-http && npm run build -w @singhak/nodeui-ui",
+    "build": "npm run build -w @singhak/nodeui-core && npm run build -w @singhak/nodeui-express && npm run build -w @singhak/nodeui-fastify && npm run build -w @singhak/nodeui-nestjs && npm run build -w @singhak/nodeui-koa && npm run build -w @singhak/nodeui-hapi && npm run build -w @singhak/nodeui-hono && npm run build -w @singhak/nodeui-http && npm run build -w @singhak/nodeui-cli && npm run build -w @singhak/nodeui-ui",
     "build:ui": "npm run build -w @singhak/nodeui-ui",
     "build:core": "npm run build -w @singhak/nodeui-core",
-    "test": "npm run test -w @singhak/nodeui-core && npm run test -w @singhak/nodeui-express && npm run test -w @singhak/nodeui-fastify && npm run test -w @singhak/nodeui-nestjs && npm run test -w @singhak/nodeui-koa && npm run test -w @singhak/nodeui-hapi && npm run test -w @singhak/nodeui-hono && npm run test -w @singhak/nodeui-http && npm run test -w @singhak/nodeui-ui",
-    "typecheck": "npm run typecheck -w @singhak/nodeui-core && npm run typecheck -w @singhak/nodeui-express && npm run typecheck -w @singhak/nodeui-fastify && npm run typecheck -w @singhak/nodeui-nestjs && npm run typecheck -w @singhak/nodeui-koa && npm run typecheck -w @singhak/nodeui-hapi && npm run typecheck -w @singhak/nodeui-hono && npm run typecheck -w @singhak/nodeui-http && npm run typecheck -w @singhak/nodeui-ui && npm run typecheck -w @singhak/nodeui-demo-express && npm run typecheck -w @singhak/nodeui-demo-nestjs",
+    "test": "npm run test -w @singhak/nodeui-core && npm run test -w @singhak/nodeui-express && npm run test -w @singhak/nodeui-fastify && npm run test -w @singhak/nodeui-nestjs && npm run test -w @singhak/nodeui-koa && npm run test -w @singhak/nodeui-hapi && npm run test -w @singhak/nodeui-hono && npm run test -w @singhak/nodeui-http && npm run test -w @singhak/nodeui-cli && npm run test -w @singhak/nodeui-ui",
+    "typecheck": "npm run typecheck -w @singhak/nodeui-core && npm run typecheck -w @singhak/nodeui-express && npm run typecheck -w @singhak/nodeui-fastify && npm run typecheck -w @singhak/nodeui-nestjs && npm run typecheck -w @singhak/nodeui-koa && npm run typecheck -w @singhak/nodeui-hapi && npm run typecheck -w @singhak/nodeui-hono && npm run typecheck -w @singhak/nodeui-http && npm run typecheck -w @singhak/nodeui-cli && npm run typecheck -w @singhak/nodeui-ui && npm run typecheck -w @singhak/nodeui-demo-express && npm run typecheck -w @singhak/nodeui-demo-nestjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
