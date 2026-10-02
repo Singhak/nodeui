@@ -2,11 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "baseUrl": "..",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "paths": {
-      "@singhak/nodeui-core": ["core/src/index.ts"]
+      "@singhak/nodeui-core": ["../core/src/index.ts"]
     }
   },
   "include": ["src"]

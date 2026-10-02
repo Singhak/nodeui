@@ -9,7 +9,9 @@ export type PanelId =
   | 'env'
   | 'routes'
   | 'logs'
-  | 'metrics';
+  | 'metrics'
+  | 'outgoing'
+  | (string & {});
 
 export type Envelope<T> =
   { ok: true; data: T } | { ok: false; error: { code: string; message: string } };
@@ -25,9 +27,18 @@ export interface ConfigData {
   pollIntervalMs: number;
   panels: PanelId[];
   masking: { enabled: boolean; pattern: string };
+  authRequired?: boolean;
+  plugins?: Array<{ id: PanelId; title: string }>;
 }
 
 export type HealthStatus = 'ok' | 'degraded' | 'critical' | 'unknown';
+
+export interface HealthCheckResult {
+  name: string;
+  status: 'up' | 'down';
+  durationMs: number;
+  error?: string;
+}
 
 export interface HealthData {
   status: HealthStatus;
@@ -38,6 +49,7 @@ export interface HealthData {
   platform: string;
   eventLoopLagMs: number | null;
   memoryUsedPercent: number | null;
+  checks?: HealthCheckResult[];
 }
 
 export interface MemoryData {
@@ -149,4 +161,20 @@ export interface MetricsBucket {
 
 export interface MetricsData {
   buckets: MetricsBucket[];
+}
+
+export interface OutgoingRequestEntry {
+  id: number;
+  method: string;
+  url: string;
+  status: number | null;
+  durationMs: number;
+  timestampMs: number;
+  error?: string;
+}
+
+export interface OutgoingData {
+  total: number;
+  failed: number;
+  entries: OutgoingRequestEntry[];
 }

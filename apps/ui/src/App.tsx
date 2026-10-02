@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { getConfig } from './api';
+import { getConfig, isUnauthorized, onUnauthorized } from './api';
 import type { ConfigData, PanelId } from './types';
 import { HealthPanel } from './panels/HealthPanel';
 import { MemoryPanel } from './panels/MemoryPanel';
@@ -11,6 +11,8 @@ import { HeapSnapshotPanel } from './panels/HeapSnapshotPanel';
 import { EnvPanel } from './panels/EnvPanel';
 import { RoutesPanel } from './panels/RoutesPanel';
 import { LogsPanel } from './panels/LogsPanel';
+import { OutgoingPanel } from './panels/OutgoingPanel';
+import { GenericPanel } from './panels/GenericPanel';
 
 interface PanelSpec {
   id: PanelId;
@@ -36,12 +38,19 @@ const PANELS: PanelSpec[] = [
   },
   { id: 'env', title: 'Environment', component: (i) => <EnvPanel intervalMs={i} /> },
   { id: 'routes', title: 'Routes', component: (i) => <RoutesPanel intervalMs={i} /> },
+  { id: 'outgoing', title: 'Outgoing Calls', component: (i) => <OutgoingPanel intervalMs={i} /> },
   { id: 'logs', title: 'Logs', component: (i) => <LogsPanel intervalMs={i} /> },
 ];
 
 export default function App() {
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
+  const [denied, setDenied] = useState(isUnauthorized());
+
+  useEffect(() => {
+    if (isUnauthorized()) setDenied(true);
+    return onUnauthorized(() => setDenied(true));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +67,22 @@ export default function App() {
     };
   }, []);
 
+  if (denied) {
+    return (
+      <main className="app">
+        <section className="auth-screen" role="alert">
+          <h1>nodeui</h1>
+          <h2>Authentication required</h2>
+          <p>
+            This console is protected by an access token. Open it once with{' '}
+            <code>?token=&lt;NODEUI_TOKEN&gt;</code> appended to the console URL; the server then
+            stores an HttpOnly cookie and later visits work without the token.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
   if (configError) {
     return (
       <main className="app">
@@ -72,7 +97,12 @@ export default function App() {
   const enabled = config?.enabled ?? true;
   const panels = config?.panels ?? PANELS.map((p) => p.id);
   const interval = config?.pollIntervalMs ?? 2000;
-  const visible = PANELS.filter((p) => panels.includes(p.id));
+  const builtIn = PANELS.filter((p) => panels.includes(p.id));
+  const plugins = (config?.plugins ?? []).filter((p) => !PANELS.some((b) => b.id === p.id));
+  const navItems = [
+    ...builtIn.map((p) => ({ id: p.id, title: p.title })),
+    ...plugins.map((p) => ({ id: p.id, title: p.title || p.id })),
+  ];
 
   return (
     <main className="app">
@@ -83,11 +113,28 @@ export default function App() {
         ) : (
           <span className="status-pill status-ok">live</span>
         )}
+        {config?.authRequired ? (
+          <span className="lock-badge" title="Access token required" aria-label="token protected">
+            🔒 token
+          </span>
+        ) : null}
       </header>
+      <nav className="app-nav" aria-label="Panels">
+        {navItems.map((item) => (
+          <a key={item.id} href={`#panel-${item.id}`}>
+            {item.title}
+          </a>
+        ))}
+      </nav>
       <div className="grid">
-        {visible.map((panel) => (
-          <div key={panel.id} className="grid-item">
+        {builtIn.map((panel) => (
+          <div key={panel.id} id={`panel-${panel.id}`} className="grid-item">
             {panel.component(interval)}
+          </div>
+        ))}
+        {plugins.map((plugin) => (
+          <div key={plugin.id} id={`panel-${plugin.id}`} className="grid-item">
+            <GenericPanel id={plugin.id} title={plugin.title || plugin.id} intervalMs={interval} />
           </div>
         ))}
       </div>

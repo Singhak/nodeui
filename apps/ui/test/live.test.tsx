@@ -53,3 +53,22 @@ describe('useLivePanel', () => {
     expect(result.current.data).toEqual({ status: 'ok' });
   });
 });
+
+describe('live stream rejection (e.g. 429 too-many-streams)', () => {
+  it('stays disconnected and keeps polling over REST', async () => {
+    FakeEventSource.instances = [];
+    (globalThis as { EventSource: unknown }).EventSource = FakeEventSource;
+    const fetchFn = vi.fn(async () => ({ status: 'ok' }));
+    const { result } = renderHook(() => useLivePanel('cpu', fetchFn, 2000));
+    act(() => {
+      for (const inst of FakeEventSource.instances) inst.onerror?.();
+    });
+    expect(liveClient.isConnected('cpu')).toBe(false);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    expect(result.current.data).toEqual({ status: 'ok' });
+    expect(result.current.error).toBeNull();
+    (globalThis as { EventSource: unknown }).EventSource = undefined;
+  });
+});

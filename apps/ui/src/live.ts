@@ -17,6 +17,7 @@ class LiveClient {
   private readonly subscribers = new Map<PanelId, Set<Subscriber>>();
   private connected = false;
   private retryMs = 1000;
+  private failures = 0;
   private reconnectTimer: number | undefined;
 
   subscribe(id: PanelId, cb: Subscriber): () => void {
@@ -47,6 +48,7 @@ class LiveClient {
     es.onopen = () => {
       this.connected = true;
       this.retryMs = 1000;
+      this.failures = 0;
     };
     es.onmessage = (ev) => {
       let payload: { panel?: PanelId; envelope?: Envelope<unknown> };
@@ -64,6 +66,11 @@ class LiveClient {
       es.close();
       if (this.es === es) this.es = null;
       this.connected = false;
+      // EventSource hides the HTTP status, so a 429 'too-many-streams' looks
+      // like any failed connect. Panels keep polling over REST meanwhile; after
+      // repeated failures retry at the slowest cadence to stay quiet.
+      this.failures += 1;
+      if (this.failures >= 3) this.retryMs = MAX_RETRY_MS;
       this.scheduleReconnect();
     };
   }
@@ -86,6 +93,7 @@ class LiveClient {
     this.es = null;
     this.connected = false;
     this.retryMs = 1000;
+    this.failures = 0;
   }
 
   private reconnect(): void {

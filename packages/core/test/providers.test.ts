@@ -213,33 +213,63 @@ describe('EventLoopLagProvider', () => {
 });
 
 describe('HealthProvider', () => {
-  it('reports unknown when no samples exist', () => {
+  it('reports unknown when no samples exist', async () => {
     const provider = new HealthProvider();
     const ctx = makeCtx();
-    const result = provider.get(ctx);
+    const result = await provider.get(ctx);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.status).toBe('unknown');
   });
 
-  it('reports ok with healthy lag', () => {
+  it('reports ok with healthy lag', async () => {
     const store = { 'event-loop': { currentMs: 20 } };
     const provider = new HealthProvider();
-    const result = provider.get(makeCtx({}, store));
+    const result = await provider.get(makeCtx({}, store));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.status).toBe('ok');
     expect(result.data.eventLoopLagMs).toBe(20);
   });
 
-  it('reports degraded and critical at thresholds', () => {
-    const degraded = new HealthProvider().get(makeCtx({}, { 'event-loop': { currentMs: 100 } }));
+  it('reports degraded and critical at thresholds', async () => {
+    const degraded = await new HealthProvider().get(
+      makeCtx({}, { 'event-loop': { currentMs: 100 } }),
+    );
     if (!degraded.ok) return;
     expect(degraded.data.status).toBe('degraded');
 
-    const critical = new HealthProvider().get(makeCtx({}, { 'event-loop': { currentMs: 500 } }));
+    const critical = await new HealthProvider().get(
+      makeCtx({}, { 'event-loop': { currentMs: 500 } }),
+    );
     if (!critical.ok) return;
     expect(critical.data.status).toBe('critical');
+  });
+});
+
+describe('HealthProvider dependency checks', () => {
+  it('reports up/down checks and goes critical when one is down', async () => {
+    const provider = new HealthProvider({
+      db: async () => true,
+      cache: async () => {
+        throw new Error('connection refused');
+      },
+    });
+    const result = await provider.get(makeCtx({}, { 'event-loop': { currentMs: 1 } }));
+    expect(result.ok).toBe(true);
+    expect(result.data.status).toBe('critical');
+    expect(result.data.statusReason).toContain('cache');
+    expect(result.data.checks.map((c) => [c.name, c.status])).toEqual([
+      ['db', 'up'],
+      ['cache', 'down'],
+    ]);
+    expect(result.data.checks[1]?.error).toBe('connection refused');
+  });
+
+  it('treats a falsy-false result as down', async () => {
+    const provider = new HealthProvider({ ping: () => false });
+    const result = await provider.get(makeCtx({}, { 'event-loop': { currentMs: 1 } }));
+    expect(result.data.checks[0]?.status).toBe('down');
   });
 });
 

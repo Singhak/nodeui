@@ -85,6 +85,11 @@ export class RoutesProvider implements NodeUIProvider<RoutesData> {
   get(
     ctx: ProviderContext,
   ): { ok: true; data: RoutesData } | { ok: false; error: { code: string; message: string } } {
+    const source = ctx.store['routes-source'] as RouteEntry[] | (() => RouteEntry[]) | undefined;
+    if (source !== undefined) {
+      const routes = typeof source === 'function' ? source() : source;
+      return { ok: true, data: { routes } };
+    }
     const router = ctx.store['express-router'];
     if (!router) {
       return {

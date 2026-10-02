@@ -10,9 +10,13 @@ export interface SseStream {
  * Minimal Server-Sent Events writer over a raw HTTP response. Events are
  * emitted as `data: <json>\n\n`; heartbeats as `:ping\n\n`.
  */
-export function startSse(res: ServerResponse): SseStream {
+export function startSse(
+  res: ServerResponse,
+  extraHeaders: Record<string, string> = {},
+): SseStream {
   let closed = false;
   res.writeHead(200, {
+    ...extraHeaders,
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import type {
   ApiEnvelope,
   ConfigData,
@@ -12,10 +12,11 @@ import type {
   PanelId,
   ProviderContext,
   ProviderResult,
+  RouteEntry,
   StartupData,
 } from './types';
-import { maskSecrets, resolveActivation, SECRET_KEY_PATTERN } from './safety';
-import { isLoopbackAddress } from './safety';
+import { isLoopbackAddress, maskSecrets, resolveActivation, SECRET_KEY_PATTERN } from './safety';
+import { AUTH_COOKIE, createGuard } from './guard';
 import { ConfirmationStore } from './confirmations';
 import { DEFAULT_LOG_SIZE } from './constants';
 import { startSse } from './sse';
@@ -28,6 +29,8 @@ import { HealthProvider } from './providers/health';
 import { HeapSnapshotProvider } from './providers/heap-snapshot';
 import { StartupTracker } from './providers/startup-tracker';
 import { RequestsProvider } from './providers/requests';
+import { OutgoingProvider } from './providers/outgoing';
+import type { HealthCheck } from './providers/health';
 import { MetricsProvider, LogsProvider, EnvProvider, RoutesProvider } from './providers';
 
 export interface NodeUIOptions {
@@ -55,8 +58,32 @@ export interface NodeUIOptions {
   inactivityTimeoutMs?: number;
   /** TTL for mutation confirmation nonces. Default 60000. */
   confirmTtlMs?: number;
-  /** Directory for heap snapshot files. Defaults to the OS temp dir. */
+  /** Directory for heap snapshot files. Defaults to a private dir under the OS temp dir. */
   heapSnapshotDir?: string;
+  /** Extra `Host` hostnames accepted besides loopback names (or `NODEUI_ALLOWED_HOSTS`, comma-separated). */
+  allowedHosts?: string[];
+  /** Extra `Origin` values accepted for cross-origin calls (or `NODEUI_ALLOWED_ORIGINS`). */
+  allowedOrigins?: string[];
+  /**
+   * Extra remote IPs / IPv4 CIDRs accepted (or `NODEUI_ALLOWED_REMOTE`). Use
+   * `['172.16.0.0/12']` to reach the console from the host when the app runs in Docker.
+   */
+  allowedRemoteAddresses?: string[];
+  /** Accept requests carrying `X-Forwarded-*` headers (or `NODEUI_TRUST_PROXY=true`). Default false. */
+  trustProxy?: boolean;
+  /**
+   * Shared access token (or `NODEUI_TOKEN`). When set, open `/nodeui/?token=<token>` once;
+   * the browser then keeps an HttpOnly cookie. API clients may send `Authorization: Bearer`.
+   */
+  authToken?: string;
+  /** Maximum concurrent live (SSE) streams. Default 10. */
+  maxSseClients?: number;
+  /** Custom panels; each provider needs a unique lowercase id, e.g. `queues`. */
+  plugins?: NodeUIProvider[];
+  /** Named dependency checks (database, cache, ...) surfaced in the health panel. */
+  healthChecks?: Record<string, HealthCheck>;
+  /** Max recorded outgoing HTTP calls. Default 200. */
+  outgoingLogSize?: number;
 }
 
 export interface NodeUIServer {
@@ -67,6 +94,11 @@ export interface NodeUIServer {
   middleware(): NodeUIMiddleware;
   /** Direct request handling (no `next`); used for tests and adapters. */
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>;
+  /**
+   * Supplies the route list directly (frameworks other than Express, e.g.
+   * Fastify's `onRoute`). Takes precedence over Express router introspection.
+   */
+  setRoutes(source: RouteEntry[] | (() => RouteEntry[])): void;
   /** Records a bootstrap timing mark, e.g. `mark("listening")`. */
   mark(name: string): void;
   /** Whether a background-sampling provider is currently running. */
@@ -91,8 +123,43 @@ const SSE_HEARTBEAT_MS = 15_000;
  * Serializes an API envelope to JSON, applying secret masking so values
  * under keys like `TOKEN`/`KEY`/`SECRET`/`PASSWORD` never reach the UI.
  */
-export function serializeEnvelope<T>(envelope: ApiEnvelope<T>): string {
-  return JSON.stringify(maskSecrets(envelope));
+export function serializeEnvelope<T>(envelope: ApiEnvelope<T>, mask = true): string {
+  return JSON.stringify(mask ? maskSecrets(envelope) : envelope);
+}
+
+const BUILT_IN_PANELS = new Set<string>([
+  'health',
+  'memory',
+  'cpu',
+  'event-loop',
+  'heap-snapshot',
+  'startup',
+  'requests',
+  'env',
+  'routes',
+  'logs',
+  'metrics',
+  'outgoing',
+]);
+const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+const RESERVED_API_NAMES = new Set(['config', 'live', 'confirmations']);
+
+const SECURITY_HEADERS: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Cross-Origin-Resource-Policy': 'same-origin',
+};
+const CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+  "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+
+function listFrom(value: string[] | undefined, raw: string | undefined): string[] {
+  if (value) return value;
+  return (raw ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
 }
 
 function pathnameOf(req: IncomingMessage): string {
@@ -163,14 +230,44 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       env.NODEUI_CONFIRM_TTL_MS ? Number(env.NODEUI_CONFIRM_TTL_MS) : 60_000,
       'NODEUI_CONFIRM_TTL_MS',
     ),
-    heapSnapshotDir: options.heapSnapshotDir ?? env.NODEUI_HEAP_SNAPSHOT_DIR ?? tmpdir(),
+    heapSnapshotDir:
+      options.heapSnapshotDir ?? env.NODEUI_HEAP_SNAPSHOT_DIR ?? join(tmpdir(), 'nodeui-heap'),
+    allowedHosts: listFrom(options.allowedHosts, env.NODEUI_ALLOWED_HOSTS),
+    allowedOrigins: listFrom(options.allowedOrigins, env.NODEUI_ALLOWED_ORIGINS),
+    allowedRemoteAddresses: listFrom(options.allowedRemoteAddresses, env.NODEUI_ALLOWED_REMOTE),
+    trustProxy: options.trustProxy ?? env.NODEUI_TRUST_PROXY === 'true',
+    authRequired: Boolean(options.authToken ?? env.NODEUI_TOKEN),
+    maxSseClients: positiveInt(
+      options.maxSseClients,
+      env.NODEUI_MAX_SSE_CLIENTS ? Number(env.NODEUI_MAX_SSE_CLIENTS) : 10,
+      'NODEUI_MAX_SSE_CLIENTS',
+    ),
   };
+  const authToken = options.authToken ?? env.NODEUI_TOKEN;
+  const guard = createGuard({
+    host: config.host,
+    allowedHosts: config.allowedHosts,
+    allowedOrigins: config.allowedOrigins,
+    allowedRemoteAddresses: config.allowedRemoteAddresses,
+    trustProxy: config.trustProxy,
+    authToken: authToken || undefined,
+  });
 
-  if (!isLoopbackAddress(config.host)) {
+  if (config.enabled && !isLoopbackAddress(config.host)) {
     console.warn(
       `[nodeui] NODEUI_HOST is set to non-loopback "${config.host}". ` +
-        'The developer console will be reachable from other hosts; only do this deliberately.',
+        'The developer console will be reachable from other hosts; only do this deliberately' +
+        (config.authRequired ? '.' : ' and set NODEUI_TOKEN (authToken) to require a token.'),
     );
+  }
+  if (config.enabled && env.NODE_ENV === 'production') {
+    console.warn(
+      '[nodeui] running with NODE_ENV=production. The console exposes environment, logs and ' +
+        'heap data; keep it behind loopback and an auth token.',
+    );
+  }
+  if (config.enabled && !config.maskSecrets) {
+    console.warn('[nodeui] secret masking is disabled; panels may show credentials.');
   }
 
   const ctx: ProviderContext = { config, env, store: {} };
@@ -178,7 +275,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     ctx.store['app-config'] = options.config;
   }
   const registry = new ProviderRegistry();
-  registry.register(new HealthProvider());
+  registry.register(new HealthProvider(options.healthChecks));
   registry.register(new MemoryProvider());
   registry.register(new CpuProvider());
   registry.register(new EventLoopLagProvider());
@@ -205,10 +302,31 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   registry.register(envProvider);
   const routesProvider = new RoutesProvider();
   registry.register(routesProvider);
+  registry.register(
+    new OutgoingProvider(positiveInt(options.outgoingLogSize, 200, 'outgoingLogSize')),
+  );
+
+  const pluginMeta: Array<{ id: PanelId; title: string }> = [];
+  for (const plugin of options.plugins ?? []) {
+    if (
+      !PLUGIN_ID_PATTERN.test(plugin.id) ||
+      BUILT_IN_PANELS.has(plugin.id) ||
+      RESERVED_API_NAMES.has(plugin.id) ||
+      registry.get(plugin.id)
+    ) {
+      throw new Error(
+        `nodeui plugin id "${plugin.id}" is invalid or already taken ` +
+          '(use lowercase letters, digits and "-")',
+      );
+    }
+    registry.register(plugin);
+    pluginMeta.push({ id: plugin.id, title: plugin.title ?? plugin.id });
+  }
 
   const confirmations = new ConfirmationStore(config.confirmTtlMs);
   const activeProviders = new Set<PanelId>();
   let inactivityTimer: NodeJS.Timeout | null = null;
+  let sseClients = 0;
 
   function stopAll(): void {
     for (const id of activeProviders) {
@@ -236,8 +354,9 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   }
 
   function sendJson(res: ServerResponse, status: number, envelope: ApiEnvelope<unknown>): void {
-    const body = serializeEnvelope(envelope);
+    const body = serializeEnvelope(envelope, config.maskSecrets);
     res.writeHead(status, {
+      ...SECURITY_HEADERS,
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(body),
       'Cache-Control': 'no-store',
@@ -262,8 +381,29 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     const provider = registry.get(id);
     if (!provider) return notFound(res);
     const requestCtx = query ? { ...ctx, query } : ctx;
-    const result = (await provider.get(requestCtx)) as ProviderResult<unknown>;
-    sendJson(res, result.ok ? 200 : 500, result);
+    sendJson(res, ...(await readPanel(provider, requestCtx)));
+  }
+
+  /** Runs a provider, converting a throw or rejection into an error envelope. */
+  async function readPanel(
+    provider: NodeUIProvider,
+    requestCtx: ProviderContext,
+  ): Promise<[number, ProviderResult<unknown>]> {
+    try {
+      const result = (await provider.get(requestCtx)) as ProviderResult<unknown>;
+      return [result.ok ? 200 : 500, result];
+    } catch (err) {
+      return [
+        500,
+        {
+          ok: false,
+          error: {
+            code: 'provider-failed',
+            message: err instanceof Error ? err.message : 'provider failed',
+          },
+        },
+      ];
+    }
   }
 
   function configData(): ConfigData {
@@ -278,6 +418,8 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       pollIntervalMs: config.pollIntervalMs,
       panels: registry.ids(),
       masking: { enabled: config.maskSecrets, pattern: SECRET_KEY_PATTERN.source },
+      authRequired: config.authRequired,
+      plugins: pluginMeta,
     };
   }
 
@@ -322,23 +464,38 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
 
     if (panels.length === 0) return notFound(res);
 
-    const stream = startSse(res);
+    if (sseClients >= config.maxSseClients) {
+      res.writeHead(429, { ...SECURITY_HEADERS, 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          ok: false,
+          error: { code: 'too-many-streams', message: 'too many open live streams' },
+        }),
+      );
+      return;
+    }
+    sseClients += 1;
+    const stream = startSse(res, SECURITY_HEADERS);
     const push = async (): Promise<void> => {
       for (const id of panels) {
         ensureActive(id);
         const provider = registry.get(id);
         if (!provider) continue;
-        const result = (await provider.get(ctx)) as ProviderResult<unknown>;
-        stream.send({ panel: id, envelope: result });
+        const [, result] = await readPanel(provider, ctx);
+        stream.send({ panel: id, envelope: config.maskSecrets ? maskSecrets(result) : result });
       }
     };
-    void push();
-    const pushTimer = setInterval(() => void push(), config.pollIntervalMs);
+    void push().catch(() => undefined);
+    const pushTimer = setInterval(() => void push().catch(() => undefined), config.pollIntervalMs);
     const heartbeatTimer = setInterval(() => stream.heartbeat(), SSE_HEARTBEAT_MS);
     if (typeof pushTimer.unref === 'function') pushTimer.unref();
     if (typeof heartbeatTimer.unref === 'function') heartbeatTimer.unref();
 
+    let cleaned = false;
     const cleanup = (): void => {
+      if (cleaned) return;
+      cleaned = true;
+      sseClients -= 1;
       clearInterval(pushTimer);
       clearInterval(heartbeatTimer);
       stream.close();
@@ -387,6 +544,8 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       return;
     }
     res.writeHead(200, {
+      ...SECURITY_HEADERS,
+      'Content-Security-Policy': CSP,
       'Content-Type': asset.contentType,
       'Content-Length': asset.length,
       'Cache-Control': 'no-cache',
@@ -394,29 +553,29 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     asset.content.pipe(res);
   }
 
-  function guardLoopback(req: IncomingMessage, res: ServerResponse): boolean {
-    if (isLoopbackAddress(config.host)) {
-      const remote = req.socket.remoteAddress;
-      if (!isLoopbackAddress(remote)) {
-        sendJson(res, 403, {
-          ok: false,
-          error: {
-            code: 'forbidden',
-            message: 'nodeui is loopback-only; requests from other hosts are rejected',
-          },
-        });
-        return false;
-      }
-    }
-    return true;
-  }
-
   async function handleNodeUIPath(
     req: IncomingMessage,
     res: ServerResponse,
     urlPath: string,
   ): Promise<void> {
-    if (!guardLoopback(req, res)) return;
+    const verdict = guard(req);
+    if (!verdict.ok) {
+      sendJson(res, verdict.status, {
+        ok: false,
+        error: { code: verdict.code, message: verdict.message },
+      });
+      return;
+    }
+    if (verdict.setToken !== undefined) {
+      res.writeHead(302, {
+        ...SECURITY_HEADERS,
+        'Set-Cookie': `${AUTH_COOKIE}=${encodeURIComponent(verdict.setToken)}; Path=${path}; HttpOnly; SameSite=Strict`,
+        Location: `${path}/`,
+        'Cache-Control': 'no-store',
+      });
+      res.end();
+      return;
+    }
     const apiBase = `${path}/api`;
     if (urlPath === apiBase || urlPath.startsWith(`${apiBase}/`)) {
       await handleApi(req, res, urlPath.slice(apiBase.length));
@@ -505,6 +664,9 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
         return;
       }
       notFound(res);
+    },
+    setRoutes(source): void {
+      ctx.store['routes-source'] = source;
     },
     mark(name: string): void {
       startupTracker.mark(name);

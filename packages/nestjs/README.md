@@ -63,3 +63,16 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+## Logs panel
+
+Nest's default logger writes to `process.stdout`, not `console.*`, so its output
+would not reach the Logs panel. Mirror it with `NodeUILogger`:
+
+```ts
+const app = await NestFactory.create(AppModule, { bufferLogs: true });
+app.useLogger(app.get(NodeUILogger));
+```
+
+The module also shuts the console down (stopping samplers and restoring
+`console.*`) when the Nest app closes.

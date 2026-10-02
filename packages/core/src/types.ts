@@ -6,7 +6,7 @@
  * endpoint returns an {@link ApiEnvelope} which is the same shape.
  */
 
-export type PanelId =
+export type BuiltInPanelId =
   | 'health'
   | 'memory'
   | 'cpu'
@@ -17,7 +17,14 @@ export type PanelId =
   | 'env'
   | 'routes'
   | 'logs'
-  | 'metrics';
+  | 'metrics'
+  | 'outgoing';
+
+/**
+ * Panel identifier. Built-in panels are listed in {@link BuiltInPanelId};
+ * plugins may register any other string id (lowercase letters, digits, `-`).
+ */
+export type PanelId = BuiltInPanelId | (string & {});
 
 /** Resolved, validated console configuration. */
 export interface NodeUIConfig {
@@ -45,6 +52,18 @@ export interface NodeUIConfig {
   confirmTtlMs: number;
   /** Directory where heap snapshot files are written. */
   heapSnapshotDir: string;
+  /** Extra `Host` header hostnames accepted besides loopback names. */
+  allowedHosts: string[];
+  /** Extra `Origin` values accepted for cross-origin calls. */
+  allowedOrigins: string[];
+  /** Extra remote IPs / IPv4 CIDRs accepted (e.g. Docker bridge `172.17.0.0/16`). */
+  allowedRemoteAddresses: string[];
+  /** Accept requests carrying `X-Forwarded-*` headers. */
+  trustProxy: boolean;
+  /** Whether a shared access token is required. */
+  authRequired: boolean;
+  /** Maximum concurrent live (SSE) streams. */
+  maxSseClients: number;
 }
 
 /** Context handed to every provider call. */
@@ -81,6 +100,8 @@ export type ApiEnvelope<T> = ProviderResult<T>;
  */
 export interface NodeUIProvider<T = unknown> {
   readonly id: PanelId;
+  /** Display label for plugin panels; defaults to the id. */
+  readonly title?: string;
   start?(ctx: ProviderContext): void;
   stop?(ctx: ProviderContext): void;
   get(ctx: ProviderContext): ProviderResult<T> | Promise<ProviderResult<T>>;
@@ -112,6 +133,13 @@ export interface CpuData {
   sampleAtMs: number;
 }
 
+export interface HealthCheckResult {
+  name: string;
+  status: 'up' | 'down';
+  durationMs: number;
+  error?: string;
+}
+
 export interface HealthData {
   status: 'ok' | 'degraded' | 'critical' | 'unknown';
   statusReason: string;
@@ -121,6 +149,8 @@ export interface HealthData {
   platform: string;
   eventLoopLagMs: number | null;
   memoryUsedPercent: number | null;
+  /** Results of user-registered dependency checks; empty when none. */
+  checks: HealthCheckResult[];
 }
 
 export interface StartupMark {
@@ -192,6 +222,23 @@ export interface MetricsData {
   buckets: MetricsBucket[];
 }
 
+export interface OutgoingRequestEntry {
+  id: number;
+  method: string;
+  /** Target as `host/path` (query string removed). */
+  url: string;
+  status: number | null;
+  durationMs: number;
+  timestampMs: number;
+  error?: string;
+}
+
+export interface OutgoingData {
+  total: number;
+  failed: number;
+  entries: OutgoingRequestEntry[];
+}
+
 export interface HeapSnapshotData {
   fileName: string;
   filePath: string;
@@ -221,4 +268,7 @@ export interface ConfigData {
   pollIntervalMs: number;
   panels: PanelId[];
   masking: { enabled: boolean; pattern: string };
+  authRequired: boolean;
+  /** Plugin panel ids and titles, in registration order. */
+  plugins: Array<{ id: PanelId; title: string }>;
 }

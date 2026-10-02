@@ -1,5 +1,13 @@
-import { DynamicModule, Inject, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import {
+  DynamicModule,
+  Inject,
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { createNodeUI, type NodeUIOptions, type NodeUIServer } from '@singhak/nodeui-core';
+import { NodeUILogger } from './nodeui.logger';
 import { NodeUIService } from './nodeui.service';
 import { NODEUI_SERVER } from './tokens';
 
@@ -13,13 +21,13 @@ import { NODEUI_SERVER } from './tokens';
  * export class AppModule {}
  */
 @Module({})
-export class NodeUIModule implements NestModule {
+export class NodeUIModule implements NestModule, OnModuleDestroy {
   static register(options?: NodeUIOptions): DynamicModule {
     const server = createNodeUI(options);
     return {
       module: NodeUIModule,
-      providers: [{ provide: NODEUI_SERVER, useValue: server }, NodeUIService],
-      exports: [NodeUIService, NODEUI_SERVER],
+      providers: [{ provide: NODEUI_SERVER, useValue: server }, NodeUIService, NodeUILogger],
+      exports: [NodeUIService, NodeUILogger, NODEUI_SERVER],
     };
   }
 
@@ -27,5 +35,10 @@ export class NodeUIModule implements NestModule {
 
   configure(consumer: MiddlewareConsumer): void {
     consumer.apply(this.server.middleware()).forRoutes('*');
+  }
+
+  /** Stops samplers and restores `console.*` when the Nest app closes. */
+  onModuleDestroy(): void {
+    this.server.shutdown();
   }
 }

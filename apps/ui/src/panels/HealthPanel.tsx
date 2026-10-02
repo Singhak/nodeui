@@ -1,7 +1,7 @@
 import { getPanel } from '../api';
 import { usePolledPanel } from '../hooks';
 import type { HealthData } from '../types';
-import { formatSeconds } from '../format';
+import { formatDuration, formatSeconds } from '../format';
 import { Panel, PanelError, PanelLoading } from './Panel';
 
 export function HealthPanel({ intervalMs }: { intervalMs: number }) {
@@ -49,6 +49,37 @@ export function HealthPanel({ intervalMs }: { intervalMs: number }) {
               </dd>
             </div>
           </dl>
+          {data.checks && data.checks.length > 0 ? (
+            <>
+              <h3 className="panel-subtitle">Dependency checks</h3>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>name</th>
+                    <th>status</th>
+                    <th>duration</th>
+                    <th>error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.checks.map((check) => (
+                    <tr key={check.name} className={check.status === 'down' ? 'row-failed' : ''}>
+                      <td className="mono">{check.name}</td>
+                      <td>
+                        <span
+                          className={`status-pill status-${check.status === 'up' ? 'ok' : 'critical'}`}
+                        >
+                          {check.status}
+                        </span>
+                      </td>
+                      <td className="mono">{formatDuration(check.durationMs)}</td>
+                      <td className="mono">{check.error ?? ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          ) : null}
         </div>
       )}
     </Panel>

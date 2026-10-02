@@ -9,10 +9,18 @@ import type { ConfirmIssued } from './types';
 export class ConfirmationStore {
   private nonces = new Map<string, number>();
 
-  constructor(private readonly ttlMs: number) {}
+  constructor(
+    private readonly ttlMs: number,
+    private readonly maxOutstanding = 100,
+  ) {}
 
   issue(): ConfirmIssued {
     this.prune();
+    while (this.nonces.size >= this.maxOutstanding) {
+      const oldest = this.nonces.keys().next().value;
+      if (oldest === undefined) break;
+      this.nonces.delete(oldest);
+    }
     const nonce = randomBytes(16).toString('hex');
     const expiresAtMs = Date.now() + this.ttlMs;
     this.nonces.set(nonce, expiresAtMs);

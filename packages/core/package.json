@@ -1,6 +1,6 @@
 {
   "name": "@singhak/nodeui-core",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Framework-neutral engine and safety gate for the NodeUI developer console.",
   "license": "Apache-2.0",
   "main": "./dist/index.cjs",
@@ -25,7 +25,7 @@
     "observability",
     "monitoring",
     "debugging",
-    "bootstrap",
+    "dev-tools",
     "express",
     "nestjs",
     "devtools"

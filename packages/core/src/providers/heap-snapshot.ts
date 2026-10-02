@@ -1,4 +1,4 @@
-import { mkdir, stat } from 'node:fs/promises';
+import { chmod, mkdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeHeapSnapshot } from 'node:v8';
@@ -11,7 +11,7 @@ import type {
 } from '../types';
 
 function defaultSnapshotDir(): string {
-  return process.env.NODEUI_HEAP_SNAPSHOT_DIR ?? tmpdir();
+  return process.env.NODEUI_HEAP_SNAPSHOT_DIR ?? join(tmpdir(), 'nodeui-heap');
 }
 
 /**
@@ -34,8 +34,10 @@ export class HeapSnapshotProvider implements NodeUIProvider<HeapSnapshotPanelDat
     const fileName = `nodeui-heap-${process.pid}-${stamp}.heapsnapshot`;
     const filePath = join(dir, fileName);
     try {
-      await mkdir(dir, { recursive: true });
+      // Heap dumps contain every secret held in memory: keep them owner-only.
+      await mkdir(dir, { recursive: true, mode: 0o700 });
       writeHeapSnapshot(filePath);
+      await chmod(filePath, 0o600).catch(() => undefined);
       const fileStat = await stat(filePath);
       const data: HeapSnapshotData = {
         fileName,

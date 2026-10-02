@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
-import { NodeUIModule, NodeUIService, type NodeUIOptions } from '../src/index';
+import { NodeUILogger, NodeUIModule, NodeUIService, type NodeUIOptions } from '../src/index';
 
 const apps: INestApplication[] = [];
 
@@ -58,5 +58,20 @@ describe('@singhak/nodeui-nestjs', () => {
     const app = await createApp({ env: { NODE_ENV: 'production' } });
     const res = await request(app.getHttpServer()).get('/nodeui/api/config');
     expect(res.status).toBe(404);
+  });
+});
+
+describe('NodeUILogger', () => {
+  it('mirrors Nest log lines into the logs panel', async () => {
+    const app = await createApp();
+    const logger = app.get(NodeUILogger);
+    logger.log('hello from nest', 'Ctx');
+    logger.error('kaboom');
+    const res = await request(app.getHttpServer()).get('/nodeui/api/logs');
+    const messages = (res.body.data.entries as Array<{ level: string; message: string }>).map(
+      (e) => `${e.level}:${e.message}`,
+    );
+    expect(messages).toContain('info:hello from nest Ctx');
+    expect(messages).toContain('error:kaboom');
   });
 });
