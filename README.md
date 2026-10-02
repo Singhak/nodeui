@@ -74,14 +74,14 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 
 | Package                                       | Version  | Description                                                                            |
 | :-------------------------------------------- | :------- | :------------------------------------------------------------------------------------- |
-| [`@singhak/nodeui-core`](packages/core)       | `v0.3.1` | Framework-neutral observability engine, REST/SSE provider registry, static SPA server. |
-| [`@singhak/nodeui-express`](packages/express) | `v0.3.1` | Middleware adapter for Express applications.                                           |
-| [`@singhak/nodeui-fastify`](packages/fastify) | `v0.3.1` | Plugin adapter for Fastify 4 / 5 applications.                                         |
-| [`@singhak/nodeui-nestjs`](packages/nestjs)   | `v0.3.1` | Dynamic module adapter for NestJS applications (Express or Fastify platform).          |
-| [`@singhak/nodeui-koa`](packages/koa)         | `v0.3.1` | Middleware adapter for Koa 2 / 3.                                                      |
-| [`@singhak/nodeui-hapi`](packages/hapi)       | `v0.3.1` | Plugin adapter for Hapi 21.                                                            |
-| [`@singhak/nodeui-hono`](packages/hono)       | `v0.3.1` | Middleware adapter for Hono on Node.js (`@hono/node-server`).                          |
-| [`@singhak/nodeui-http`](packages/http)       | `v0.3.1` | Plain `node:http` adapter, also for Next.js custom servers and Restify.                |
+| [`@singhak/nodeui-core`](packages/core)       | `v0.4.0` | Framework-neutral observability engine, REST/SSE provider registry, static SPA server. |
+| [`@singhak/nodeui-express`](packages/express) | `v0.4.0` | Middleware adapter for Express applications.                                           |
+| [`@singhak/nodeui-fastify`](packages/fastify) | `v0.4.0` | Plugin adapter for Fastify 4 / 5 applications.                                         |
+| [`@singhak/nodeui-nestjs`](packages/nestjs)   | `v0.4.0` | Dynamic module adapter for NestJS applications (Express or Fastify platform).          |
+| [`@singhak/nodeui-koa`](packages/koa)         | `v0.4.0` | Middleware adapter for Koa 2 / 3.                                                      |
+| [`@singhak/nodeui-hapi`](packages/hapi)       | `v0.4.0` | Plugin adapter for Hapi 21.                                                            |
+| [`@singhak/nodeui-hono`](packages/hono)       | `v0.4.0` | Middleware adapter for Hono on Node.js (`@hono/node-server`).                          |
+| [`@singhak/nodeui-http`](packages/http)       | `v0.4.0` | Plain `node:http` adapter, also for Next.js custom servers and Restify.                |
 | [`apps/ui`](apps/ui)                          | —        | React + Vite single-page console embedded into core static build.                      |
 | [`apps/demo-express`](apps/demo-express)      | —        | Sandbox Express verification server.                                                   |
 | [`apps/demo-nestjs`](apps/demo-nestjs)        | —        | Sandbox NestJS verification server.                                                    |

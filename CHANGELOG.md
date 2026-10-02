@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-02
+
 ### Added
 
 - New adapters: `@singhak/nodeui-koa` (Koa 2/3), `@singhak/nodeui-hapi` (Hapi 21), `@singhak/nodeui-hono` (Hono on `@hono/node-server`) and `@singhak/nodeui-http` (plain `node:http`, Next.js custom servers, Restify). NestJS now has a tested Fastify-platform path and an error interceptor.
