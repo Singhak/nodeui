@@ -12,6 +12,8 @@ export default tseslint.config(
       '**/build/**',
       '**/coverage/**',
       'apps/ui/.vite/**',
+      'docs/.vitepress/dist/**',
+      'docs/.vitepress/cache/**',
     ],
   },
   js.configs.recommended,

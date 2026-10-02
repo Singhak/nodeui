@@ -5,3 +5,5 @@ build
 coverage
 package-lock.json
 apps/ui/.vite
+docs/.vitepress/dist
+docs/.vitepress/cache

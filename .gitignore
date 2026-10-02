@@ -184,3 +184,7 @@ apps/ui/.vite/
 packages/*/src/**/*.js
 packages/*/src/**/*.js.map
 packages/*/src/**/*.d.ts
+
+# Docs site
+docs/.vitepress/dist
+docs/.vitepress/cache

@@ -32,6 +32,9 @@
     "demo:express": "npm run dev -w @singhak/nodeui-demo-express",
     "demo:nestjs": "npm run dev -w @singhak/nodeui-demo-nestjs",
     "release:check": "node scripts/release-check.mjs",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "bench": "node scripts/bench.mjs",
     "bench:hooks": "node scripts/bench-hooks.mjs",
     "publish": "node scripts/publish.mjs",
@@ -43,6 +46,7 @@
     "eslint-config-prettier": "^10.1.0",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.44.0"
+    "typescript-eslint": "^8.44.0",
+    "vitepress": "^1.6.4"
   }
 }
