@@ -25,7 +25,7 @@ const { middleware, server, errorHandler } = nodeui({
   },
   config: {
     appName: 'demo-express',
-    version: '0.4.0',
+    version: '0.5.0',
     port,
     // masked automatically:
     DATABASE_URL: 'postgres://app:s3cret@localhost:5432/demo',

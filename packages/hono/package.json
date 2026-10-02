@@ -1,6 +1,6 @@
 {
   "name": "@singhak/nodeui-hono",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Hono middleware adapter (Node runtime) for the NodeUI developer console.",
   "license": "Apache-2.0",
   "main": "./dist/index.cjs",
@@ -47,7 +47,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@singhak/nodeui-core": "^0.4.0"
+    "@singhak/nodeui-core": "^0.5.0"
   },
   "peerDependencies": {
     "hono": "^4.0.0",

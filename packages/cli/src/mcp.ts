@@ -9,10 +9,11 @@ import type {
   RequestsData,
   RoutesData,
 } from '@singhak/nodeui-core';
+import pkg from '../package.json';
 import { buildDigest } from './digest';
 import { fetchPanel, PanelError, type ServiceTarget } from './targets';
 
-const SERVER_INFO = { name: 'nodeui', version: '0.4.0' };
+const SERVER_INFO = { name: 'nodeui', version: pkg.version };
 const DEFAULT_PROTOCOL = '2025-03-26';
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 200;
