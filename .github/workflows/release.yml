@@ -1,0 +1,35 @@
+name: Release
+
+# Publishes all packages to npm with provenance when a version tag is pushed
+# (e.g. `git tag v0.3.0 && git push --tags`). Requires an NPM_TOKEN secret.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run release:check
+      - name: Publish
+        run: |
+          for pkg in core express fastify nestjs; do
+            npm publish --workspace "@singhak/nodeui-$pkg" --access public --provenance
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -14,8 +14,7 @@ is released.
 
 Please **do not** open a public issue for security problems. Report them
 privately to the maintainers by opening a GitHub advisory at
-https://github.com/Singhak/nodeui/security/advisories/new or by emailing
-security@nodeui.dev.
+https://github.com/Singhak/nodeui/security/advisories/new.
 
 You can expect:
 
@@ -26,8 +25,11 @@ You can expect:
 ## In-scope concerns
 
 - Bypassing the loopback-only guard (requests from non-loopback hosts
-  reaching the console when `host` is the default).
-- Bypassing or weakening secret masking (`token|key|secret|password|credential`).
+  reaching the console when `host` is the default), the `Host`/`Origin`
+  validation (DNS rebinding, cross-site requests) or the optional access
+  token.
+- Bypassing or weakening secret masking (key-name matching plus scrubbing of URL credentials, bearer tokens and
+  `password=...` pairs in text).
 - Path traversal in the static asset server that escapes the embedded UI.
 - Activation bypass — the console becoming active in production without
   `NODEUI_ENABLED=true`.

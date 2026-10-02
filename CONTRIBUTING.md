@@ -17,7 +17,7 @@ npm run test
 - **Small, focused PRs.** One logical change per PR keeps review fast.
 - **Tests for behavior.** New providers and adapters should ship with unit or
   e2e tests. Run `npm test` before pushing.
-- **No new runtime dependencies in `@nodeui/core`.** Core deliberately uses
+- **No new runtime dependencies in `@singhak/nodeui-core`.** Core deliberately uses
   only Node's built-in modules. New panels must not require third-party
   runtime packages.
 - **Provider contract stability.** The `ProviderResult<T>` /
@@ -71,5 +71,5 @@ Follow the existing history: conventional commits
 
 Maintainers only. Run `npm run release:check` to validate version alignment
 across workspaces, then `npm run publish` to build and publish
-`@nodeui/core`, `@nodeui/express`, and `@nodeui/nestjs` in dependency order.
+`@singhak/nodeui-core`, `@singhak/nodeui-express`, and `@singhak/nodeui-nestjs` in dependency order.
 See `scripts/publish.mjs` for the exact steps.

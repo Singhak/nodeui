@@ -28,6 +28,6 @@ body:
   attributes:
   label: Checklist
   description: Confirm each item applies.
-  value: | - [ ] `npm run lint`, `format:check`, `typecheck`, `test`, and `build` pass - [ ] No new runtime dependencies in `@nodeui/core` - [ ] Public contract (`ProviderResult` / `ApiEnvelope`) unchanged unless intended - [ ] README and CHANGELOG updated where applicable
+  value: | - [ ] `npm run lint`, `format:check`, `typecheck`, `test`, and `build` pass - [ ] No new runtime dependencies in `@singhak/nodeui-core` - [ ] Public contract (`ProviderResult` / `ApiEnvelope`) unchanged unless intended - [ ] README and CHANGELOG updated where applicable
   validations:
   required: true
