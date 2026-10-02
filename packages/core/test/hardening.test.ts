@@ -7,6 +7,7 @@ import {
   hostnameFromHostHeader,
   maskSecrets,
   maskSecretText,
+  isValidAddressEntry,
   matchesAddress,
   SECRET_KEY_PATTERN,
 } from '../src/safety';
@@ -402,5 +403,48 @@ describe('requests summary', () => {
     expect(s.routes[0]).toMatchObject({ path: '/slow', p95Ms: 500 });
     expect(s.routes.find((r) => r.path === '/users/:id')?.count).toBe(18);
     expect(summarizeRequests([]).errorRate).toBe(0);
+  });
+});
+
+describe('matchesAddress IPv6', () => {
+  it('matches IPv6 CIDRs', () => {
+    expect(matchesAddress('fd00::1', ['fd00::/8'])).toBe(true);
+    expect(matchesAddress('fdab:1:2:3::9', ['fd00::/8'])).toBe(true);
+    expect(matchesAddress('fe80::1', ['fd00::/8'])).toBe(false);
+    expect(matchesAddress('2001:db8::5', ['2001:db8::/32'])).toBe(true);
+    expect(matchesAddress('2001:db9::5', ['2001:db8::/32'])).toBe(false);
+    expect(matchesAddress('2001:db8:0:1::1', ['2001:db8:0:1::/64'])).toBe(true);
+    expect(matchesAddress('2001:db8:0:2::1', ['2001:db8:0:1::/64'])).toBe(false);
+    expect(matchesAddress('abcd::1', ['::/0'])).toBe(true);
+    expect(matchesAddress('abcd::1', ['abcd::1/128'])).toBe(true);
+    expect(matchesAddress('abcd::2', ['abcd::1/128'])).toBe(false);
+  });
+
+  it('compares IPv6 literals by value, not spelling', () => {
+    expect(matchesAddress('::1', ['0:0:0:0:0:0:0:1'])).toBe(true);
+    expect(matchesAddress('FD00:0:0:0:0:0:0:A', ['fd00::a'])).toBe(true);
+    expect(matchesAddress('fd00::a', ['fd00::b'])).toBe(false);
+    expect(matchesAddress('fe80::1%eth0', ['fe80::1'])).toBe(true);
+  });
+
+  it('keeps IPv4 and IPv6 apart', () => {
+    expect(matchesAddress('10.0.0.1', ['fd00::/8'])).toBe(false);
+    expect(matchesAddress('fd00::1', ['10.0.0.0/8'])).toBe(false);
+    expect(matchesAddress('::ffff:10.0.0.1', ['10.0.0.0/8'])).toBe(true);
+  });
+
+  it('never matches malformed entries', () => {
+    for (const bad of ['fd00::/129', 'fd00::/x', 'nonsense', 'fd00:::1', '1:2:3:4:5:6:7:8:9', '']) {
+      expect(matchesAddress('fd00::1', [bad])).toBe(false);
+    }
+  });
+
+  it('validates entries for the startup warning', () => {
+    for (const ok of ['127.0.0.1', '172.16.0.0/12', 'fd00::/8', '::1', '2001:db8::/32']) {
+      expect(isValidAddressEntry(ok)).toBe(true);
+    }
+    for (const bad of ['fd00::/129', '10.0.0.0/33', 'host.local', '1.2.3', 'fd00::/']) {
+      expect(isValidAddressEntry(bad)).toBe(false);
+    }
   });
 });

@@ -2,9 +2,9 @@
 
 Framework-neutral engine for the NodeUI developer console: observability
 providers, the REST contract, the safety gate, and the static console server.
-The Express, Fastify and NestJS adapters build on this package; you normally
-consume those instead of using `@singhak/nodeui-core` directly. Use core
-directly to integrate a framework without an adapter (Koa, Hono, plain `http`).
+The Express, Fastify, NestJS, Koa, Hapi, Hono and `node:http` adapters build on
+this package; you normally consume those instead of using `@singhak/nodeui-core`
+directly. Use core directly to integrate a framework that has no adapter.
 
 ## Providers
 
@@ -100,7 +100,9 @@ server.shutdown();
 ```
 
 Plugin ids are lowercase letters, digits and `-`, and must not collide with a built-in panel.
-Without an Express router, feed the routes panel with `server.setRoutes([...])`.
+Express routes are discovered automatically, and the Fastify, Hapi and Hono adapters feed
+the panel for you. For anything else (Koa, plain `http`, a custom router), feed it with
+`server.setRoutes([...])`.
 
 ## Development
 
