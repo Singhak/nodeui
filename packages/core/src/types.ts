@@ -18,7 +18,8 @@ export type BuiltInPanelId =
   | 'routes'
   | 'logs'
   | 'metrics'
-  | 'outgoing';
+  | 'outgoing'
+  | 'errors';
 
 /**
  * Panel identifier. Built-in panels are listed in {@link BuiltInPanelId};
@@ -296,6 +297,28 @@ export interface OutgoingRequestEntry {
   error?: string;
   /** Id of the app request that triggered this call. */
   requestId?: number;
+}
+
+export type ErrorSource = 'request' | 'uncaught' | 'rejection' | 'manual';
+
+/** Errors with the same fingerprint (type, message shape, top frames) grouped together. */
+export interface ErrorGroup {
+  id: string;
+  name: string;
+  message: string;
+  stack: string;
+  source: ErrorSource;
+  count: number;
+  firstSeenMs: number;
+  lastSeenMs: number;
+  lastRequestId?: number;
+  lastRoute?: string;
+  lastStatus?: number;
+}
+
+export interface ErrorsData {
+  total: number;
+  groups: ErrorGroup[];
 }
 
 export interface OutgoingData {

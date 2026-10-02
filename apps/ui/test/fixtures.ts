@@ -23,6 +23,7 @@ export const config = {
     'logs',
     'metrics',
     'outgoing',
+    'errors',
     'queue',
   ],
   masking: { enabled: true, pattern: 'TOKEN|KEY|SECRET|PASSWORD' },
@@ -182,6 +183,34 @@ export const outgoing = {
   ],
 };
 
+export const errors = {
+  total: 3,
+  groups: [
+    {
+      id: 'a1b2c3d4e5f6',
+      name: 'TypeError',
+      message: "Cannot read properties of undefined (reading 'id')",
+      stack: 'TypeError: boom\n    at lookup (/app/users.ts:10:5)',
+      source: 'request',
+      count: 2,
+      firstSeenMs: at(10, 0, 1),
+      lastSeenMs: at(10, 0, 5),
+      lastRoute: '/users/:id',
+      lastRequestId: 4,
+    },
+    {
+      id: 'f6e5d4c3b2a1',
+      name: 'Error',
+      message: 'db down',
+      stack: '',
+      source: 'rejection',
+      count: 1,
+      firstSeenMs: at(10, 0, 2),
+      lastSeenMs: at(10, 0, 2),
+    },
+  ],
+};
+
 export function defaultPayloads(): Record<string, unknown> {
   return structuredClone({
     '/config': config,
@@ -196,6 +225,7 @@ export function defaultPayloads(): Record<string, unknown> {
     '/routes': routes,
     '/logs': logs,
     '/outgoing': outgoing,
+    '/errors': errors,
     '/queue': { depth: 7 },
   });
 }

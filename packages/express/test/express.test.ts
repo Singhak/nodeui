@@ -74,6 +74,48 @@ describe('@singhak/nodeui-express', () => {
     server.shutdown();
   });
 
+  it('records errors passed through the error handler', async () => {
+    const { server, middleware, errorHandler } = nodeui();
+    const app = express();
+    app.use(middleware);
+    app.get('/boom/:id', () => {
+      throw new Error('boom 7');
+    });
+    app.use(errorHandler);
+    app.use(((_err, _req, res, _next) => {
+      res.status(500).json({ failed: true });
+    }) as express.ErrorRequestHandler);
+    await request(app).get('/boom/7');
+    await request(app).get('/boom/8');
+    const res = await request(app).get('/nodeui/api/errors');
+    expect(res.body.data.total).toBe(2);
+    expect(res.body.data.groups).toHaveLength(1);
+    expect(res.body.data.groups[0]).toMatchObject({
+      count: 2,
+      lastRoute: '/boom/:id',
+      source: 'request',
+    });
+    expect(res.body.data.groups[0].lastRequestId).toBeGreaterThan(0);
+    server.shutdown();
+  });
+
+  it('does not record client errors', async () => {
+    const { server, middleware, errorHandler } = nodeui();
+    const app = express();
+    app.use(middleware);
+    app.get('/missing', (_req, _res, next) => {
+      next(Object.assign(new Error('nope'), { status: 404 }));
+    });
+    app.use(errorHandler);
+    app.use(((_err, _req, res, _next) => {
+      res.status(404).end();
+    }) as express.ErrorRequestHandler);
+    await request(app).get('/missing');
+    const res = await request(app).get('/nodeui/api/errors');
+    expect(res.body.data.total).toBe(0);
+    server.shutdown();
+  });
+
   it('fails closed in production', async () => {
     const { app, server } = makeApp({ env: { NODE_ENV: 'production' } });
     const consoleRes = await request(app).get('/nodeui/api/config');

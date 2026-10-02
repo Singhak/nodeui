@@ -78,6 +78,13 @@ export function nodeui(options?: NodeUIOptions): NodeUIFastifyPlugin {
       enterRequestContext(req.raw);
     });
 
+    app.addHook('onError', (req, _reply, error, hookDone) => {
+      server.recordError(error, {
+        route: (req as { routeOptions?: { url?: string } }).routeOptions?.url,
+      });
+      hookDone();
+    });
+
     app.addHook('onClose', (_instance, next) => {
       server.shutdown();
       next();

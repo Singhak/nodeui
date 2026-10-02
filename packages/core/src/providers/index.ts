@@ -4,6 +4,7 @@ export { MemoryProvider } from './memory';
 export { CpuProvider, type CpuClock, type CpuUsageSnapshot } from './cpu';
 export { EventLoopLagProvider, type EventLoopClock } from './event-loop';
 export { HealthProvider, type HealthCheck } from './health';
+export { ErrorsProvider, fingerprintError } from './errors';
 export { OutgoingProvider, interceptOutgoing } from './outgoing';
 export { HeapSnapshotProvider } from './heap-snapshot';
 export { RequestsProvider, summarizeRequests } from './requests';

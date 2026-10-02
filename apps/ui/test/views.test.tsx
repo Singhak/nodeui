@@ -17,6 +17,28 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('Errors view', () => {
+  beforeEach(() => resetEnv('#/errors'));
+
+  it('lists grouped errors, filters and opens the stack in a drawer', async () => {
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Error: db down')).toBeInTheDocument());
+    expect(screen.getByText('3 total · 2 distinct')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/Filter by type/), { target: { value: 'users' } });
+    expect(screen.queryByText('Error: db down')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Cannot read properties/));
+    const dialog = await screen.findByRole('dialog', { name: 'Error details' });
+    expect(within(dialog).getByText(/at lookup/)).toBeInTheDocument();
+    expect(within(dialog).getByText('/users/:id')).toBeInTheDocument();
+  });
+
+  it('shows an empty state when nothing was recorded', async () => {
+    payloads['/errors'] = { total: 0, groups: [] };
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('No errors recorded')).toBeInTheDocument());
+  });
+});
+
 describe('Outgoing view', () => {
   beforeEach(() => resetEnv('#/outgoing'));
 

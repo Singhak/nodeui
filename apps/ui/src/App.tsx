@@ -7,6 +7,7 @@ import { TelemetryProvider, useTelemetry } from './telemetry';
 import { useTheme } from './theme';
 import type { ConfigData } from './types';
 import { GenericView } from './views/GenericView';
+import { ErrorsView } from './views/ErrorsView';
 import { EnvView, LogsView, RoutesView } from './views/ListViews';
 import { OutgoingView } from './views/OutgoingView';
 import { Overview } from './views/Overview';
@@ -35,6 +36,7 @@ const BUILT_IN_IDS = [
   'logs',
   'metrics',
   'outgoing',
+  'errors',
 ];
 
 export function buildNav(config: ConfigData | null): NavItem[] {
@@ -58,6 +60,14 @@ export function buildNav(config: ConfigData | null): NavItem[] {
       icon: '⇡',
       group: 'main',
       segments: ['outgoing'],
+    });
+  if (has('errors'))
+    items.push({
+      id: 'errors',
+      title: 'Errors',
+      icon: '⚠',
+      group: 'main',
+      segments: ['errors'],
     });
   if (has('logs'))
     items.push({ id: 'logs', title: 'Logs', icon: '≣', group: 'main', segments: ['logs'] });
@@ -224,6 +234,7 @@ function Shell({ config }: { config: ConfigData }) {
   } else if (view === 'overview') body = <Overview />;
   else if (view === 'requests') body = <RequestsView />;
   else if (view === 'outgoing') body = <OutgoingView intervalMs={interval} />;
+  else if (view === 'errors') body = <ErrorsView intervalMs={interval} />;
   else if (view === 'logs') body = <LogsView intervalMs={interval} />;
   else if (view === 'env') body = <EnvView intervalMs={interval} />;
   else if (view === 'routes') body = <RoutesView intervalMs={interval} />;

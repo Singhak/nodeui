@@ -11,6 +11,7 @@ export type PanelId =
   | 'logs'
   | 'metrics'
   | 'outgoing'
+  | 'errors'
   | (string & {});
 
 export type Envelope<T> =
@@ -181,6 +182,25 @@ export interface OutgoingRequestEntry {
   timestampMs: number;
   error?: string;
   requestId?: number;
+}
+
+export interface ErrorGroup {
+  id: string;
+  name: string;
+  message: string;
+  stack: string;
+  source: 'request' | 'uncaught' | 'rejection' | 'manual';
+  count: number;
+  firstSeenMs: number;
+  lastSeenMs: number;
+  lastRequestId?: number;
+  lastRoute?: string;
+  lastStatus?: number;
+}
+
+export interface ErrorsData {
+  total: number;
+  groups: ErrorGroup[];
 }
 
 export interface OutgoingData {

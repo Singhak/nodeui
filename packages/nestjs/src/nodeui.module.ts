@@ -6,7 +6,9 @@ import {
   NestModule,
   OnModuleDestroy,
 } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { createNodeUI, type NodeUIOptions, type NodeUIServer } from '@singhak/nodeui-core';
+import { NodeUIErrorInterceptor } from './nodeui.interceptor';
 import { NodeUILogger } from './nodeui.logger';
 import { NodeUIService } from './nodeui.service';
 import { NODEUI_SERVER } from './tokens';
@@ -26,7 +28,12 @@ export class NodeUIModule implements NestModule, OnModuleDestroy {
     const server = createNodeUI(options);
     return {
       module: NodeUIModule,
-      providers: [{ provide: NODEUI_SERVER, useValue: server }, NodeUIService, NodeUILogger],
+      providers: [
+        { provide: NODEUI_SERVER, useValue: server },
+        { provide: APP_INTERCEPTOR, useClass: NodeUIErrorInterceptor },
+        NodeUIService,
+        NodeUILogger,
+      ],
       exports: [NodeUIService, NodeUILogger, NODEUI_SERVER],
     };
   }

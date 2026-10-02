@@ -38,6 +38,23 @@ afterEach(async () => {
 });
 
 describe('@singhak/nodeui-fastify', () => {
+  it('records route errors in the errors panel', async () => {
+    const app = Fastify();
+    apps.push(app);
+    await app.register(nodeui({ enabled: true }));
+    app.get('/fail/:id', async () => {
+      throw new Error('fail 3');
+    });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const port = (app.server.address() as AddressInfo).port;
+    await get(port, '/fail/1');
+    await get(port, '/fail/2');
+    const res = await get(port, '/nodeui/api/errors');
+    const data = JSON.parse(res.body).data;
+    expect(data.total).toBe(2);
+    expect(data.groups[0]).toMatchObject({ count: 2, lastRoute: '/fail/:id' });
+  });
+
   it('serves the config envelope', async () => {
     const { port } = await makeApp();
     const res = await get(port, '/nodeui/api/config');

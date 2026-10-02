@@ -33,6 +33,7 @@ import { captureRequestDetail, resolveRequestDetail } from './request-detail';
 import { StartupTracker } from './providers/startup-tracker';
 import { RequestsProvider } from './providers/requests';
 import { OutgoingProvider } from './providers/outgoing';
+import { ErrorsProvider } from './providers/errors';
 import type { HealthCheck } from './providers/health';
 import { MetricsProvider, LogsProvider, EnvProvider, RoutesProvider } from './providers';
 
@@ -114,6 +115,11 @@ export interface NodeUIServer {
   isProviderActive(id: PanelId): boolean;
   /** Pushes an external log entry into the log viewer (logger adapter). */
   addLogSource(entry: { level: LogLevel; message: string }): void;
+  /**
+   * Records a handled error (e.g. from a framework error hook) so it appears in
+   * the Errors panel, attributed to the current request when there is one.
+   */
+  recordError(error: unknown, context?: { route?: string; status?: number }): void;
   /** Stops all timers and background samplers. */
   shutdown(): void;
 }
@@ -149,6 +155,7 @@ const BUILT_IN_PANELS = new Set<string>([
   'logs',
   'metrics',
   'outgoing',
+  'errors',
 ]);
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const RESERVED_API_NAMES = new Set(['config', 'live', 'confirmations']);
@@ -318,6 +325,10 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   registry.register(
     new OutgoingProvider(positiveInt(options.outgoingLogSize, 200, 'outgoingLogSize')),
   );
+
+  const errorsProvider = new ErrorsProvider();
+  registry.register(errorsProvider);
+  if (config.enabled) errorsProvider.attach();
 
   const pluginMeta: Array<{ id: PanelId; title: string }> = [];
   for (const plugin of options.plugins ?? []) {
@@ -712,7 +723,16 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     addLogSource(entry: { level: LogLevel; message: string }): void {
       logsProvider.addSource(entry);
     },
+    recordError(error, context): void {
+      if (!config.enabled) return;
+      // Client errors (e.g. http-errors 404) are expected outcomes, not failures.
+      const e = error as { status?: unknown; statusCode?: unknown } | null;
+      const status = e?.status ?? e?.statusCode;
+      if (typeof status === 'number' && status >= 400 && status < 500) return;
+      errorsProvider.record(error, 'request', context);
+    },
     shutdown(): void {
+      errorsProvider.detach();
       stopAll();
     },
   };

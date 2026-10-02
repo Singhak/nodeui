@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { Test } from '@nestjs/testing';
-import type { INestApplication } from '@nestjs/common';
+import { Controller, Get, HttpException, Module, type INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { NodeUILogger, NodeUIModule, NodeUIService, type NodeUIOptions } from '../src/index';
@@ -16,6 +16,22 @@ async function createApp(options?: NodeUIOptions): Promise<INestApplication> {
   apps.push(app);
   return app;
 }
+
+@Controller()
+class BoomController {
+  @Get('boom')
+  boom(): never {
+    throw new Error('boom 1');
+  }
+
+  @Get('missing')
+  missing(): never {
+    throw new HttpException('nope', 404);
+  }
+}
+
+@Module({ controllers: [BoomController] })
+class BoomModule {}
 
 afterEach(async () => {
   while (apps.length) {
@@ -58,6 +74,23 @@ describe('@singhak/nodeui-nestjs', () => {
     const app = await createApp({ env: { NODE_ENV: 'production' } });
     const res = await request(app.getHttpServer()).get('/nodeui/api/config');
     expect(res.status).toBe(404);
+  });
+});
+
+describe('NodeUIErrorInterceptor', () => {
+  it('records 5xx handler errors but not client errors', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [NodeUIModule.register(), BoomModule],
+    }).compile();
+    const app = moduleRef.createNestApplication();
+    await app.init();
+    apps.push(app);
+    const http = request(app.getHttpServer());
+    expect((await http.get('/boom')).status).toBe(500);
+    expect((await http.get('/missing')).status).toBe(404);
+    const res = await http.get('/nodeui/api/errors');
+    expect(res.body.data.total).toBe(1);
+    expect(res.body.data.groups[0]).toMatchObject({ name: 'Error', source: 'request' });
   });
 });
 

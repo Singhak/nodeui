@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Requests are grouped by matched route pattern (`/users/:id`) on Express, Fastify and Nest.
 - Outgoing calls and log lines carry the originating `requestId` (AsyncLocalStorage); the Requests drawer shows a per-request timeline.
 - `captureRequestDetail` option (and `NODEUI_CAPTURE_BODIES`): query and headers by default, opt-in size-capped textual bodies, credentials always redacted; Copy as curl replays them.
+- Errors panel: failures grouped by fingerprint (type, message shape, top frames) with counts, stack and linked request. Fed by Express `errorHandler`, a Fastify `onError` hook, a Nest interceptor, `server.recordError()` and `uncaughtExceptionMonitor` (Node's crash behaviour is untouched). Client errors (4xx) are ignored.
 - Tests that the built ESM and CJS bundles serve the console.
 
 ### Changed

@@ -59,7 +59,7 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 └──────────────────────┴──────────────────────┴───────────────────────────────┘
 ```
 
-- **📊 Built-in Panels**: Health (with dependency checks), Requests, Outgoing HTTP calls, Runtime (Memory, CPU, Event-loop lag, Heap Snapshots), Routes, Logs, Environment, Startup Timeline and Metrics.
+- **📊 Built-in Panels**: Health (with dependency checks), Requests, Errors, Outgoing HTTP calls, Runtime (Memory, CPU, Event-loop lag, Heap Snapshots), Routes, Logs, Environment, Startup Timeline and Metrics.
 - **🔗 Request Correlation**: Outgoing HTTP calls and log lines are attributed to the request that caused them (via `AsyncLocalStorage`) and shown as a per-request timeline.
 - **🔍 Request Detail (opt-in)**: Matched route pattern (`/users/:id`), query, headers and size-capped bodies, with credentials always redacted. See `captureRequestDetail`.
 - **🧩 Plugin Panels**: Add your own panels (queues, cache stats, feature flags) with a few lines — see [Custom panels](#-custom-panels-plugins).
@@ -207,7 +207,7 @@ import { nodeui } from '@singhak/nodeui-express';
 const app = express();
 
 // Initialize NodeUI
-const { middleware, server } = nodeui({
+const { middleware, server, errorHandler } = nodeui({
   path: '/nodeui', // Optional: defaults to /nodeui
 });
 
@@ -216,6 +216,9 @@ app.use(middleware);
 app.get('/api/users', (req, res) => {
   res.json({ users: ['Alice', 'Bob'] });
 });
+
+// Register after your routes to feed the Errors panel (it calls next(err) untouched)
+app.use(errorHandler);
 
 app.listen(3000, '127.0.0.1', () => {
   // Record startup mark for the Startup Timeline panel
@@ -313,19 +316,20 @@ Publish the port on loopback only (`-p 127.0.0.1:3000:3000`). Requests carrying 
 
 ## 🖥️ Interactive Panels
 
-| Panel             | Icon | Metric / Capability    | Details                                                                                                                                                                       |
-| :---------------- | :--: | :--------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Health**        |  🩺  | System state & uptime  | Shows `ok`/`degraded`/`critical`, Node.js version, PID, uptime, and current lag.                                                                                              |
-| **Memory**        |  🧠  | Heap & RSS telemetry   | Visualizes Heap used, Heap total, RSS, External memory, and system-level RAM with live sparklines.                                                                            |
-| **CPU**           |  ⚡  | Process utilization    | Tracks User CPU %, System CPU %, and aggregate process CPU load over time.                                                                                                    |
-| **Event Loop**    |  ⏱️  | Lag sampling           | Monitors event-loop execution delay (current, peak max, average).                                                                                                             |
-| **Heap Snapshot** |  📸  | Memory leak inspection | One-click trigger for V8 `.heapsnapshot` generation protected by single-use nonces.                                                                                           |
-| **Requests**      |  🌐  | Traffic & Latency      | Live HTTP metrics grouped by route pattern, status breakdown, p50/p95/p99, and a request drawer with query, headers, optional bodies, Copy as curl and a correlated timeline. |
-| **Outgoing**      |  📤  | Outbound HTTP calls    | `http`/`https` (axios, got, node-fetch) and global `fetch` calls with status, duration and failures.                                                                          |
-| **Routes**        |  🛣️  | Router introspection   | Automatic discovery of declared routes, HTTP verbs, paths, and controller handler names.                                                                                      |
-| **Logs**          |  📜  | Console capture        | Real-time stream of `console.log`, `info`, `warn`, `error` with search and log level filters.                                                                                 |
-| **Environment**   |  🔐  | Configuration auditor  | Inspects `process.env` and custom configs with automatic secret redaction.                                                                                                    |
-| **Startup**       |  ⏳  | Boot profiling         | Visual sequence diagram of initialization timestamps and `server.mark()` milestones.                                                                                          |
+| Panel             | Icon | Metric / Capability    | Details                                                                                                                                                                           |
+| :---------------- | :--: | :--------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Health**        |  🩺  | System state & uptime  | Shows `ok`/`degraded`/`critical`, Node.js version, PID, uptime, and current lag.                                                                                                  |
+| **Memory**        |  🧠  | Heap & RSS telemetry   | Visualizes Heap used, Heap total, RSS, External memory, and system-level RAM with live sparklines.                                                                                |
+| **CPU**           |  ⚡  | Process utilization    | Tracks User CPU %, System CPU %, and aggregate process CPU load over time.                                                                                                        |
+| **Event Loop**    |  ⏱️  | Lag sampling           | Monitors event-loop execution delay (current, peak max, average).                                                                                                                 |
+| **Heap Snapshot** |  📸  | Memory leak inspection | One-click trigger for V8 `.heapsnapshot` generation protected by single-use nonces.                                                                                               |
+| **Requests**      |  🌐  | Traffic & Latency      | Live HTTP metrics grouped by route pattern, status breakdown, p50/p95/p99, and a request drawer with query, headers, optional bodies, Copy as curl and a correlated timeline.     |
+| **Errors**        |  ⚠️  | Failure grouping       | Errors grouped by type, message shape and origin with counts, stack trace and linked request. Express: `app.use(errorHandler)` after your routes; Fastify and Nest are automatic. |
+| **Outgoing**      |  📤  | Outbound HTTP calls    | `http`/`https` (axios, got, node-fetch) and global `fetch` calls with status, duration and failures.                                                                              |
+| **Routes**        |  🛣️  | Router introspection   | Automatic discovery of declared routes, HTTP verbs, paths, and controller handler names.                                                                                          |
+| **Logs**          |  📜  | Console capture        | Real-time stream of `console.log`, `info`, `warn`, `error` with search and log level filters.                                                                                     |
+| **Environment**   |  🔐  | Configuration auditor  | Inspects `process.env` and custom configs with automatic secret redaction.                                                                                                        |
+| **Startup**       |  ⏳  | Boot profiling         | Visual sequence diagram of initialization timestamps and `server.mark()` milestones.                                                                                              |
 
 ---
 
@@ -453,6 +457,7 @@ All JSON endpoints return an envelope format:
 | `GET`  | `/api/event-loop`    | Current, maximum, and average event-loop lag times.               |
 | `GET`  | `/api/requests`      | Recent HTTP traffic buffer and aggregate metrics.                 |
 | `GET`  | `/api/outgoing`      | Recent outgoing HTTP calls with status and duration.              |
+| `GET`  | `/api/errors`        | Grouped errors with counts, stacks and last request.              |
 | `GET`  | `/api/routes`        | Introspected Express / Fastify / NestJS routes.                   |
 | `GET`  | `/api/logs`          | Captured console logs buffer with timestamp and level.            |
 | `GET`  | `/api/env`           | Masked environment variables and app configurations.              |
