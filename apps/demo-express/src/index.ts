@@ -8,7 +8,7 @@ const base = `http://${host}:${port}`;
 const jobs = { waiting: 3, active: 1, completed: 128, failed: 2 };
 
 const app = express();
-const { middleware, server } = nodeui({
+const { middleware, server, errorHandler } = nodeui({
   // A curated environment for the Environment panel (defaults to process.env).
   // Values under secret-looking keys are masked automatically.
   env: {
@@ -55,6 +55,13 @@ app.get('/hello', (_req, res) => {
 });
 
 app.get('/users/:id', (req, res) => {
+  // Stand-in for a real DB call (pg and mysql2 are captured automatically).
+  server.recordQuery({
+    system: 'demo-db',
+    sql: `SELECT * FROM users WHERE id = ${req.params.id}`,
+    durationMs: 2 + Math.random() * 6,
+    rowCount: 1,
+  });
   res.json({ id: req.params.id, via: 'nodeui demo' });
 });
 
@@ -71,6 +78,9 @@ app.get('/proxy', async (_req, res) => {
 app.get('/boom', () => {
   throw new Error('intentional demo failure');
 });
+
+// Feeds the Errors panel; place it after the routes.
+app.use(errorHandler);
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   res.status(500).json({ error: err.message });
