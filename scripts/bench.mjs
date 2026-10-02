@@ -7,6 +7,10 @@
  * rounds of its per-round statistics, with the round-to-round spread, so
  * differences smaller than the spread should be read as noise.
  *
+ * The scenarios use `capture: 'lazy'`: the load generator shares this process, so
+ * always-on http/console hooks would wrap its own calls and skew every scenario.
+ * Hook cost is measured separately (`npm run bench:hooks`).
+ *
  * Env: BENCH_ROUNDS (default 7), BENCH_REQUESTS per round (default 3000),
  * BENCH_CONCURRENCY (default 8), BENCH_WARMUP (default 500).
  */
@@ -78,12 +82,12 @@ const median = (xs) => {
 
 async function main() {
   const baseline = await startApp(null);
-  const bodies = nodeui({ enabled: true, captureRequestDetail: { bodies: true } });
+  const bodies = nodeui({ enabled: true, capture: 'lazy', captureRequestDetail: { bodies: true } });
   const apps = [
     { label: 'baseline (no nodeui)', app: baseline, rounds: [] },
     {
       label: 'nodeui enabled (defaults)',
-      app: await startApp(nodeui({ enabled: true }).middleware),
+      app: await startApp(nodeui({ enabled: true, capture: 'lazy' }).middleware),
       rounds: [],
     },
     {
@@ -93,7 +97,7 @@ async function main() {
     },
     {
       label: 'nodeui disabled',
-      app: await startApp(nodeui({ enabled: false }).middleware),
+      app: await startApp(nodeui({ enabled: false, capture: 'lazy' }).middleware),
       rounds: [],
     },
   ];
