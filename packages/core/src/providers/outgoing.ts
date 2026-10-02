@@ -206,6 +206,8 @@ export class OutgoingProvider implements NodeUIProvider<OutgoingData> {
   private nextId = 1;
   private failed = 0;
   private release: (() => void) | null = null;
+  /** Called with every newly recorded entry (persistence hook). */
+  onRecord?: (entry: OutgoingRequestEntry) => void;
 
   constructor(size: number) {
     this.buffer = new RingBuffer<OutgoingRequestEntry>(size);
@@ -222,9 +224,20 @@ export class OutgoingProvider implements NodeUIProvider<OutgoingData> {
   }
 
   record(entry: Omit<OutgoingRequestEntry, 'id'>): void {
-    this.buffer.push({ id: this.nextId, ...entry });
+    const full = { id: this.nextId, ...entry };
+    this.buffer.push(full);
     this.nextId += 1;
     if (entry.error || (entry.status !== null && entry.status >= 500)) this.failed += 1;
+    this.onRecord?.(full);
+  }
+
+  /** Re-inserts journaled entries without re-emitting them. */
+  restore(entries: readonly OutgoingRequestEntry[]): void {
+    for (const entry of entries) {
+      this.buffer.push(entry);
+      this.nextId = Math.max(this.nextId, entry.id + 1);
+      if (entry.error || (entry.status !== null && entry.status >= 500)) this.failed += 1;
+    }
   }
 
   get(): { ok: true; data: OutgoingData } {

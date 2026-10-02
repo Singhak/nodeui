@@ -30,6 +30,7 @@ import { HealthProvider } from './providers/health';
 import { HeapSnapshotProvider } from './providers/heap-snapshot';
 import { bindRequestId, currentRequestId, runWithRequestId } from './context';
 import { captureRequestDetail, resolveRequestDetail } from './request-detail';
+import { DEFAULT_PERSIST_MAX_BYTES, Persistence, type PersistedRecord } from './persistence';
 import { StartupTracker } from './providers/startup-tracker';
 import { RequestsProvider } from './providers/requests';
 import { OutgoingProvider } from './providers/outgoing';
@@ -65,6 +66,14 @@ export interface NodeUIOptions {
    * `false` records none of it.
    */
   captureRequestDetail?: boolean | RequestDetailOptions;
+  /**
+   * Keep recent requests, outgoing calls, queries and errors in an NDJSON
+   * journal so they survive a restart (or `NODEUI_PERSIST_FILE`). Off by
+   * default. The file is private (0600), masked, and rotated at `maxBytes`
+   * (default 5 MiB). It holds whatever the console records, so keep it out of
+   * version control.
+   */
+  persist?: string | { file: string; maxBytes?: number };
   /** Idle time after which background samplers stop. Default 60000. */
   inactivityTimeoutMs?: number;
   /** TTL for mutation confirmation nonces. Default 60000. */
@@ -260,6 +269,15 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     enabled: activation.active,
     activationReason: activation.reason,
     maskSecrets: options.maskSecrets ?? true,
+    persistFile:
+      (typeof options.persist === 'string' ? options.persist : options.persist?.file) ??
+      env.NODEUI_PERSIST_FILE ??
+      null,
+    persistMaxBytes: positiveInt(
+      typeof options.persist === 'object' ? options.persist.maxBytes : undefined,
+      DEFAULT_PERSIST_MAX_BYTES,
+      'persist.maxBytes',
+    ),
     requestDetail: resolveRequestDetail(
       options.captureRequestDetail,
       env.NODEUI_CAPTURE_BODIES === 'true',
@@ -346,9 +364,10 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   registry.register(envProvider);
   const routesProvider = new RoutesProvider();
   registry.register(routesProvider);
-  registry.register(
-    new OutgoingProvider(positiveInt(options.outgoingLogSize, 200, 'outgoingLogSize')),
+  const outgoingProvider = new OutgoingProvider(
+    positiveInt(options.outgoingLogSize, 200, 'outgoingLogSize'),
   );
+  registry.register(outgoingProvider);
 
   const queriesProvider = new QueriesProvider({
     size: positiveInt(options.queryLogSize, 200, 'queryLogSize'),
@@ -359,6 +378,31 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   const errorsProvider = new ErrorsProvider();
   registry.register(errorsProvider);
   if (config.enabled) errorsProvider.attach();
+
+  // Optional journal: restore what a previous run recorded, then keep appending.
+  const persistence =
+    config.enabled && config.persistFile
+      ? new Persistence(config.persistFile, config.persistMaxBytes)
+      : null;
+  if (persistence) {
+    const byKind = (kind: PersistedRecord['kind']): unknown[] =>
+      persistence
+        .load()
+        .filter((r) => r.kind === kind)
+        .map((r) => r.data);
+    requestsProvider.restore(byKind('request') as never);
+    outgoingProvider.restore(byKind('outgoing') as never);
+    queriesProvider.restore(byKind('query') as never);
+    errorsProvider.restore(byKind('error') as never);
+    const save =
+      (kind: PersistedRecord['kind']) =>
+      (data: unknown): void =>
+        persistence.append(kind, config.maskSecrets ? maskSecrets(data) : data);
+    requestsProvider.onRecord = save('request');
+    outgoingProvider.onRecord = save('outgoing');
+    queriesProvider.onRecord = save('query');
+    errorsProvider.onRecord = save('error');
+  }
 
   const pluginMeta: Array<{ id: PanelId; title: string }> = [];
   for (const plugin of options.plugins ?? []) {
@@ -778,6 +822,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     },
     shutdown(): void {
       errorsProvider.detach();
+      persistence?.close();
       stopAll();
     },
   };

@@ -75,6 +75,8 @@ export class RequestsProvider implements NodeUIProvider<RequestsData> {
 
   private buffer: RingBuffer<RequestEntry>;
   private nextId = 1;
+  /** Called with every newly recorded entry (persistence hook). */
+  onRecord?: (entry: RequestEntry) => void;
 
   constructor(size: number) {
     this.buffer = new RingBuffer<RequestEntry>(size);
@@ -88,7 +90,17 @@ export class RequestsProvider implements NodeUIProvider<RequestsData> {
   }
 
   record(entry: Omit<RequestEntry, 'id'>, id: number = this.reserveId()): void {
-    this.buffer.push({ id, ...entry });
+    const full = { id, ...entry };
+    this.buffer.push(full);
+    this.onRecord?.(full);
+  }
+
+  /** Re-inserts journaled entries without re-emitting them. */
+  restore(entries: readonly RequestEntry[]): void {
+    for (const entry of entries) {
+      this.buffer.push(entry);
+      this.nextId = Math.max(this.nextId, entry.id + 1);
+    }
   }
 
   get length(): number {

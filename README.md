@@ -293,6 +293,19 @@ Statements repeated 5 or more times within a single request are flagged as **N+1
 
 ---
 
+## 💾 Persistence
+
+By default everything lives in memory and disappears on restart. Pass `persist` to keep recent requests, outgoing calls, queries and errors across restarts (handy with `--watch` / nodemon):
+
+```typescript
+nodeui({ persist: '.nodeui/journal.ndjson' });
+// or: { persist: { file: '.nodeui/journal.ndjson', maxBytes: 10_000_000 } }
+```
+
+The journal is append-only NDJSON written asynchronously in batches (never on the request path), created with mode `0600`, passed through secret masking before it is written, and rotated to `<file>.1` at `maxBytes` (default 5 MiB). It contains whatever the console records (paths, queries, headers, bodies if enabled), so **add it to `.gitignore`**. Logs are not persisted.
+
+---
+
 ## 🧩 Custom Panels (Plugins)
 
 Any object with an `id` and a `get()` becomes a panel. The UI renders arrays of objects as a table and objects as key/value rows.
@@ -422,6 +435,7 @@ Passed to `nodeui(options)` or `NodeUIModule.register(options)`:
 | `captureRequestDetail`   | `boolean \| { query, headers, bodies, maxBodyBytes }` | `{ query: true, headers: true, bodies: false, maxBodyBytes: 4096 }` | What extra detail is recorded per request. `false` records none. Textual bodies only, masked and size-capped. |
 | `queryLogSize`           | `number`                                              | `200`                                                               | In-memory capacity for recorded database queries.                                                             |
 | `slowQueryMs`            | `number`                                              | `100`                                                               | Queries at or above this duration are flagged slow.                                                           |
+| `persist`                | `string \| { file, maxBytes }`                        | `off`                                                               | Journal recent activity to an NDJSON file and restore it on restart. See [Persistence](#-persistence).        |
 | `logSize`                | `number`                                              | `500`                                                               | In-memory capacity for captured console messages.                                                             |
 | `pollIntervalMs`         | `number`                                              | `2000`                                                              | Sampler collection interval for CPU and event-loop lag.                                                       |
 | `inactivityTimeoutMs`    | `number`                                              | `60000`                                                             | Idling timeout before background samplers pause.                                                              |
@@ -449,6 +463,7 @@ Passed to `nodeui(options)` or `NodeUIModule.register(options)`:
 | `NODEUI_INACTIVITY_TIMEOUT_MS` | `60000`             | Inactivity timer before providers stop background polling.   |
 | `NODEUI_REQUEST_LOG_SIZE`      | `500`               | Capacity of the request circular buffer.                     |
 | `NODEUI_LOG_SIZE`              | `500`               | Capacity of the console log circular buffer.                 |
+| `NODEUI_PERSIST_FILE`          | `unset`             | Journal file for persistence across restarts.                |
 | `NODEUI_CAPTURE_BODIES`        | `false`             | `true` records masked request/response bodies.               |
 | `NODEUI_CONFIRM_TTL_MS`        | `60000`             | Nonce validity duration.                                     |
 | `NODEUI_HEAP_SNAPSHOT_DIR`     | `<tmp>/nodeui-heap` | Snapshot output directory.                                   |

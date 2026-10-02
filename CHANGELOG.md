@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Requests are grouped by matched route pattern (`/users/:id`) on Express, Fastify and Nest.
 - Outgoing calls and log lines carry the originating `requestId` (AsyncLocalStorage); the Requests drawer shows a per-request timeline.
 - `captureRequestDetail` option (and `NODEUI_CAPTURE_BODIES`): query and headers by default, opt-in size-capped textual bodies, credentials always redacted; Copy as curl replays them.
+- Optional persistence (`persist` option / `NODEUI_PERSIST_FILE`): requests, outgoing calls, queries and errors are journaled to a private NDJSON file (masked, batched async writes, rotated at 5 MiB) and restored on startup. Off by default.
 - Queries panel: SQL statements from `pg` and `mysql2` (auto-detected in the app's dependencies, captured while the panel is open), Prisma via `server.trackPrisma(client)` and any ORM via `server.recordQuery()`. Flags slow queries (`slowQueryMs`, default 100 ms) and N+1 suspects (same statement 5+ times in one request); parameter values are never recorded. Queries appear in the request timeline.
 - Errors panel: failures grouped by fingerprint (type, message shape, top frames) with counts, stack and linked request. Fed by Express `errorHandler`, a Fastify `onError` hook, a Nest interceptor, `server.recordError()` and `uncaughtExceptionMonitor` (Node's crash behaviour is untouched). Client errors (4xx) are ignored.
 - Tests that the built ESM and CJS bundles serve the console.

@@ -50,6 +50,10 @@ export interface NodeUIConfig {
   maskSecrets: boolean;
   /** What extra request detail is recorded. */
   requestDetail: Required<RequestDetailOptions>;
+  /** Journal file for persisting recent activity across restarts, or null. */
+  persistFile: string | null;
+  /** Rotation threshold for the journal. */
+  persistMaxBytes: number;
   /** Idle time after which background samplers stop. Default 60000. */
   inactivityTimeoutMs: number;
   /** TTL for mutation confirmation nonces. Default 60000. */

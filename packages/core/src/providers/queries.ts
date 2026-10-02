@@ -184,6 +184,8 @@ export class QueriesProvider implements NodeUIProvider<QueriesData> {
   private nextId = 1;
   private release: (() => void) | null = null;
   private failed = 0;
+  /** Called with every newly recorded entry (persistence hook). */
+  onRecord?: (entry: QueryEntry) => void;
 
   constructor(private readonly options: QueriesProviderOptions) {
     this.buffer = new RingBuffer<QueryEntry>(options.size);
@@ -200,9 +202,20 @@ export class QueriesProvider implements NodeUIProvider<QueriesData> {
   }
 
   record(entry: Omit<QueryEntry, 'id'>): void {
-    this.buffer.push({ id: this.nextId, ...entry });
+    const full = { id: this.nextId, ...entry };
+    this.buffer.push(full);
     this.nextId += 1;
     if (entry.error) this.failed += 1;
+    this.onRecord?.(full);
+  }
+
+  /** Re-inserts journaled entries without re-emitting them. */
+  restore(entries: readonly QueryEntry[]): void {
+    for (const entry of entries) {
+      this.buffer.push(entry);
+      this.nextId = Math.max(this.nextId, entry.id + 1);
+      if (entry.error) this.failed += 1;
+    }
   }
 
   get(): { ok: true; data: QueriesData } {

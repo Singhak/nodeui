@@ -2,6 +2,18 @@ import { createHash } from 'node:crypto';
 import { currentRequestId } from '../context';
 import type { ErrorGroup, ErrorSource, ErrorsData, NodeUIProvider } from '../types';
 
+/** A single occurrence in a serializable form (for the persistence journal). */
+export interface ErrorEvent {
+  name: string;
+  message: string;
+  stack: string;
+  source: ErrorSource;
+  at: number;
+  requestId?: number;
+  route?: string;
+  status?: number;
+}
+
 const MAX_GROUPS = 100;
 const MAX_STACK_CHARS = 4000;
 const MAX_MESSAGE_CHARS = 500;
@@ -57,6 +69,8 @@ export class ErrorsProvider implements NodeUIProvider<ErrorsData> {
   private groups = new Map<string, ErrorGroup>();
   private total = 0;
   private listener: ((err: Error, origin: string) => void) | null = null;
+  /** Called with every newly recorded occurrence (persistence hook). */
+  onRecord?: (event: ErrorEvent) => void;
 
   /** Starts observing process-level failures. Idempotent. */
   attach(): void {
@@ -79,44 +93,65 @@ export class ErrorsProvider implements NodeUIProvider<ErrorsData> {
   ): void {
     try {
       const { name, message, stack } = toError(error);
-      const fingerprint = fingerprintError(name, message, stack);
-      const now = Date.now();
       const requestId = context.requestId ?? currentRequestId();
-      const existing = this.groups.get(fingerprint);
-      this.total += 1;
-      if (existing) {
-        existing.count += 1;
-        existing.lastSeenMs = now;
-        existing.message = message.slice(0, MAX_MESSAGE_CHARS);
-        existing.stack = stack.slice(0, MAX_STACK_CHARS);
-        if (requestId !== undefined) existing.lastRequestId = requestId;
-        if (context.route) existing.lastRoute = context.route;
-        if (context.status !== undefined) existing.lastStatus = context.status;
-        return;
-      }
-      if (this.groups.size >= MAX_GROUPS) {
-        let oldest: ErrorGroup | undefined;
-        for (const g of this.groups.values()) {
-          if (!oldest || g.lastSeenMs < oldest.lastSeenMs) oldest = g;
-        }
-        if (oldest) this.groups.delete(oldest.id);
-      }
-      this.groups.set(fingerprint, {
-        id: fingerprint,
+      const event: ErrorEvent = {
         name,
-        message: message.slice(0, MAX_MESSAGE_CHARS),
+        message,
         stack: stack.slice(0, MAX_STACK_CHARS),
         source,
-        count: 1,
-        firstSeenMs: now,
-        lastSeenMs: now,
-        ...(requestId !== undefined ? { lastRequestId: requestId } : {}),
-        ...(context.route ? { lastRoute: context.route } : {}),
-        ...(context.status !== undefined ? { lastStatus: context.status } : {}),
-      });
+        at: Date.now(),
+        ...(requestId !== undefined ? { requestId } : {}),
+        ...(context.route ? { route: context.route } : {}),
+        ...(context.status !== undefined ? { status: context.status } : {}),
+      };
+      this.apply(event);
+      this.onRecord?.(event);
     } catch {
       // recording an error must never raise another one
     }
+  }
+
+  /** Re-applies journaled occurrences without re-emitting them. */
+  restore(events: readonly ErrorEvent[]): void {
+    for (const event of events) this.apply(event);
+  }
+
+  private apply(event: ErrorEvent): void {
+    const { name, message, stack, source, at: now, requestId } = event;
+    const context = { route: event.route, status: event.status };
+    const fingerprint = fingerprintError(name, message, stack);
+    const existing = this.groups.get(fingerprint);
+    this.total += 1;
+    if (existing) {
+      existing.count += 1;
+      existing.lastSeenMs = now;
+      existing.message = message.slice(0, MAX_MESSAGE_CHARS);
+      existing.stack = stack.slice(0, MAX_STACK_CHARS);
+      if (requestId !== undefined) existing.lastRequestId = requestId;
+      if (context.route) existing.lastRoute = context.route;
+      if (context.status !== undefined) existing.lastStatus = context.status;
+      return;
+    }
+    if (this.groups.size >= MAX_GROUPS) {
+      let oldest: ErrorGroup | undefined;
+      for (const g of this.groups.values()) {
+        if (!oldest || g.lastSeenMs < oldest.lastSeenMs) oldest = g;
+      }
+      if (oldest) this.groups.delete(oldest.id);
+    }
+    this.groups.set(fingerprint, {
+      id: fingerprint,
+      name,
+      message: message.slice(0, MAX_MESSAGE_CHARS),
+      stack: stack.slice(0, MAX_STACK_CHARS),
+      source,
+      count: 1,
+      firstSeenMs: now,
+      lastSeenMs: now,
+      ...(requestId !== undefined ? { lastRequestId: requestId } : {}),
+      ...(context.route ? { lastRoute: context.route } : {}),
+      ...(context.status !== undefined ? { lastStatus: context.status } : {}),
+    });
   }
 
   get(): { ok: true; data: ErrorsData } {
