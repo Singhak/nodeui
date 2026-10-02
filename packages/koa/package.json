@@ -1,6 +1,6 @@
 {
   "name": "@singhak/nodeui-koa",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Koa middleware adapter for the NodeUI developer console.",
   "license": "Apache-2.0",
   "main": "./dist/index.cjs",
@@ -47,7 +47,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@singhak/nodeui-core": "^0.3.1"
+    "@singhak/nodeui-core": "^0.4.0"
   },
   "peerDependencies": {
     "koa": "^2.0.0 || ^3.0.0"
