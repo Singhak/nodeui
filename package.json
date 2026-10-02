@@ -1,6 +1,7 @@
 {
   "name": "nodeui-monorepo",
   "version": "0.3.1",
+  "private": true,
   "license": "Apache-2.0",
   "description": "NodeUI — a BootUI-inspired, local-only developer console for Express and NestJS applications.",
   "keywords": [
