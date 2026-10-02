@@ -4,7 +4,7 @@
 
 ### **The Local-Only Developer Console & Observability Suite for Node.js**
 
-_An embedded, zero-cost developer dashboard for Express and NestJS — inspired by Spring Boot Admin & Quarkus Dev UI._
+_An embedded, zero-infrastructure developer dashboard for Express, Fastify and NestJS — inspired by Spring Boot Admin & Quarkus Dev UI._
 
 <br/>
 
@@ -12,7 +12,7 @@ _An embedded, zero-cost developer dashboard for Express and NestJS — inspired 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D%2018.0.0-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Express](https://img.shields.io/badge/Framework-Express%20%7C%20NestJS-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com)
+[![Express](https://img.shields.io/badge/Framework-Express%20%7C%20Fastify%20%7C%20NestJS-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
 <br/>
@@ -39,7 +39,7 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 - 📦 **Embedded**: Bundled React UI + REST/SSE telemetry endpoints mounted directly inside your existing HTTP app.
 - 🚀 **Zero Frontend Setup**: No external servers, no cloud telemetry, no docker containers to spin up.
 - 🔒 **Local & Secure**: Loopback-only by default, automatic secret masking, and strict fail-closed safety in production.
-- ⚡ **Zero-Overhead**: Lazy samplers that sleep when idle, and non-blocking in-memory ring buffers.
+- ⚡ **Low Overhead**: Lazy samplers that sleep when idle and bounded in-memory ring buffers. Disabled, the middleware is a plain `next()`; enabled, expect a fraction of a millisecond per request (see [Benchmarks](#-benchmarks--performance)).
 
 ---
 
@@ -54,12 +54,14 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 │ event-loop lag ms    │ RPS & error rates    │ 1-click single-use nonces     │
 ├──────────────────────┼──────────────────────┼───────────────────────────────┤
 │ 🛣️ Route Discovery   │ 🔐 Secret Masking    │ 📜 Console Interception       │
-│ Auto-scanned Express │ Redacts tokens, keys │ In-memory ring buffer of      │
-│ & NestJS router tree │ passwords in all API │ live logs with level filters  │
+│ Auto-scanned Express, │ Redacts tokens, keys │ In-memory ring buffer of      │
+│ Fastify & Nest routes │ passwords in all API │ live logs with level filters  │
 └──────────────────────┴──────────────────────┴───────────────────────────────┘
 ```
 
-- **📊 12 Built-in Panels**: Memory, CPU, Event-loop lag, Health (with dependency checks), HTTP Requests, Outgoing HTTP calls, Routes, Logs, Environment, Startup Timeline, Metrics and Heap Snapshots.
+- **📊 Built-in Panels**: Health (with dependency checks), Requests, Outgoing HTTP calls, Runtime (Memory, CPU, Event-loop lag, Heap Snapshots), Routes, Logs, Environment, Startup Timeline and Metrics.
+- **🔗 Request Correlation**: Outgoing HTTP calls and log lines are attributed to the request that caused them (via `AsyncLocalStorage`) and shown as a per-request timeline.
+- **🔍 Request Detail (opt-in)**: Matched route pattern (`/users/:id`), query, headers and size-capped bodies, with credentials always redacted. See `captureRequestDetail`.
 - **🧩 Plugin Panels**: Add your own panels (queues, cache stats, feature flags) with a few lines — see [Custom panels](#-custom-panels-plugins).
 - **🐳 Docker-friendly**: Allow-list the Docker bridge or a dev hostname without opening the console to the world.
 - **⚡ Server-Sent Events (SSE)**: Live streaming metrics directly to sparkline charts.
@@ -311,19 +313,19 @@ Publish the port on loopback only (`-p 127.0.0.1:3000:3000`). Requests carrying 
 
 ## 🖥️ Interactive Panels
 
-| Panel             | Icon | Metric / Capability    | Details                                                                                              |
-| :---------------- | :--: | :--------------------- | :--------------------------------------------------------------------------------------------------- |
-| **Health**        |  🩺  | System state & uptime  | Shows `ok`/`degraded`/`critical`, Node.js version, PID, uptime, and current lag.                     |
-| **Memory**        |  🧠  | Heap & RSS telemetry   | Visualizes Heap used, Heap total, RSS, External memory, and system-level RAM with live sparklines.   |
-| **CPU**           |  ⚡  | Process utilization    | Tracks User CPU %, System CPU %, and aggregate process CPU load over time.                           |
-| **Event Loop**    |  ⏱️  | Lag sampling           | Monitors event-loop execution delay (current, peak max, average).                                    |
-| **Heap Snapshot** |  📸  | Memory leak inspection | One-click trigger for V8 `.heapsnapshot` generation protected by single-use nonces.                  |
-| **Requests**      |  🌐  | Traffic & Latency      | Live HTTP metrics: request rates, status breakdown, latency histogram, and request ring buffer.      |
-| **Outgoing**      |  📤  | Outbound HTTP calls    | `http`/`https` (axios, got, node-fetch) and global `fetch` calls with status, duration and failures. |
-| **Routes**        |  🛣️  | Router introspection   | Automatic discovery of declared routes, HTTP verbs, paths, and controller handler names.             |
-| **Logs**          |  📜  | Console capture        | Real-time stream of `console.log`, `info`, `warn`, `error` with search and log level filters.        |
-| **Environment**   |  🔐  | Configuration auditor  | Inspects `process.env` and custom configs with automatic secret redaction.                           |
-| **Startup**       |  ⏳  | Boot profiling         | Visual sequence diagram of initialization timestamps and `server.mark()` milestones.                 |
+| Panel             | Icon | Metric / Capability    | Details                                                                                                                                                                       |
+| :---------------- | :--: | :--------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Health**        |  🩺  | System state & uptime  | Shows `ok`/`degraded`/`critical`, Node.js version, PID, uptime, and current lag.                                                                                              |
+| **Memory**        |  🧠  | Heap & RSS telemetry   | Visualizes Heap used, Heap total, RSS, External memory, and system-level RAM with live sparklines.                                                                            |
+| **CPU**           |  ⚡  | Process utilization    | Tracks User CPU %, System CPU %, and aggregate process CPU load over time.                                                                                                    |
+| **Event Loop**    |  ⏱️  | Lag sampling           | Monitors event-loop execution delay (current, peak max, average).                                                                                                             |
+| **Heap Snapshot** |  📸  | Memory leak inspection | One-click trigger for V8 `.heapsnapshot` generation protected by single-use nonces.                                                                                           |
+| **Requests**      |  🌐  | Traffic & Latency      | Live HTTP metrics grouped by route pattern, status breakdown, p50/p95/p99, and a request drawer with query, headers, optional bodies, Copy as curl and a correlated timeline. |
+| **Outgoing**      |  📤  | Outbound HTTP calls    | `http`/`https` (axios, got, node-fetch) and global `fetch` calls with status, duration and failures.                                                                          |
+| **Routes**        |  🛣️  | Router introspection   | Automatic discovery of declared routes, HTTP verbs, paths, and controller handler names.                                                                                      |
+| **Logs**          |  📜  | Console capture        | Real-time stream of `console.log`, `info`, `warn`, `error` with search and log level filters.                                                                                 |
+| **Environment**   |  🔐  | Configuration auditor  | Inspects `process.env` and custom configs with automatic secret redaction.                                                                                                    |
+| **Startup**       |  ⏳  | Boot profiling         | Visual sequence diagram of initialization timestamps and `server.mark()` milestones.                                                                                          |
 
 ---
 
@@ -333,7 +335,7 @@ NodeUI embeds seamlessly into your application pipeline without external process
 
 ```mermaid
 flowchart TB
-    subgraph HostApp["Node.js Application (Express / NestJS)"]
+    subgraph HostApp["Node.js Application (Express / Fastify / NestJS)"]
         Router["Application Routes & Middleware"]
         NodeUIMW["NodeUI Middleware (/nodeui/*)"]
 
@@ -374,7 +376,8 @@ flowchart TB
 - **🛡️ Aggressive Secret Redaction**: Values under keys such as `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, `AUTH`, `COOKIE`, `DSN`, `DATABASE_URL`, plus credentials embedded in text (`postgres://user:pass@host`, bearer tokens, JWTs, `password=...` — including log lines) are replaced with `[REDACTED]`. Applies to REST and the live stream. Set `maskSecrets: false` to opt out.
 - **📸 Private Heap Dumps**: Snapshots are written owner-only (`0600`) into a private directory. A heap dump contains every secret in memory; delete them when done.
 - **🔑 Nonce-Gated Mutating Actions**: Heavy operations like V8 Heap Snapshots require a two-step challenge: request a single-use confirmation nonce via `POST /confirmations`, then submit with `x-nodeui-confirm` header.
-- **⚡ Zero Overhead When Disabled**: When inactive, the middleware is a direct, zero-overhead `next()` passthrough without active event listeners or timers.
+- **⚡ Negligible Cost When Disabled**: When inactive, the middleware is a direct `next()` passthrough without event listeners or timers.
+- **🧾 Credentials Never Stored**: `authorization`, `cookie`, `set-cookie`, `proxy-authorization`, `x-api-key` and any header or query key that looks secret are redacted at capture time, even with `maskSecrets: false`. Request/response bodies are off by default.
 
 ---
 
@@ -384,28 +387,29 @@ flowchart TB
 
 Passed to `nodeui(options)` or `NodeUIModule.register(options)`:
 
-| Option                   | Type                            | Default             | Description                                                           |
-| :----------------------- | :------------------------------ | :------------------ | :-------------------------------------------------------------------- |
-| `path`                   | `string`                        | `'/nodeui'`         | Base route prefix where console UI and API are mounted.               |
-| `host`                   | `string`                        | `'127.0.0.1'`       | Allowed host interface for incoming requests.                         |
-| `enabled`                | `boolean`                       | `env-based`         | Explicitly enable (`true`) or disable (`false`) console.              |
-| `maskSecrets`            | `boolean`                       | `true`              | Automatically redact sensitive environment and config values.         |
-| `requestLogSize`         | `number`                        | `500`               | In-memory capacity for HTTP request logs.                             |
-| `logSize`                | `number`                        | `500`               | In-memory capacity for captured console messages.                     |
-| `pollIntervalMs`         | `number`                        | `2000`              | Sampler collection interval for CPU and event-loop lag.               |
-| `inactivityTimeoutMs`    | `number`                        | `60000`             | Idling timeout before background samplers pause.                      |
-| `confirmTtlMs`           | `number`                        | `60000`             | Expiration window for mutation confirmation nonces.                   |
-| `heapSnapshotDir`        | `string`                        | `<tmp>/nodeui-heap` | Destination directory where `.heapsnapshot` files are written.        |
-| `allowedHosts`           | `string[]`                      | `[]`                | Extra `Host` header names accepted besides loopback names.            |
-| `allowedOrigins`         | `string[]`                      | `[]`                | Extra `Origin` values accepted for cross-origin calls.                |
-| `allowedRemoteAddresses` | `string[]`                      | `[]`                | Extra client IPs / IPv4 CIDRs accepted (e.g. Docker bridge).          |
-| `trustProxy`             | `boolean`                       | `false`             | Accept requests carrying `X-Forwarded-*` headers.                     |
-| `authToken`              | `string`                        | `undefined`         | Require this token (`Authorization: Bearer`, cookie or `?token=`).    |
-| `maxSseClients`          | `number`                        | `10`                | Concurrent live-stream connections allowed.                           |
-| `plugins`                | `NodeUIProvider[]`              | `[]`                | Custom panels.                                                        |
-| `healthChecks`           | `Record<string, () => unknown>` | `{}`                | Dependency checks shown in the Health panel.                          |
-| `outgoingLogSize`        | `number`                        | `200`               | Capacity of the outgoing HTTP call buffer.                            |
-| `config`                 | `object \| fn`                  | `undefined`         | Custom metadata object or getter to display in the Environment panel. |
+| Option                   | Type                                                  | Default                                                             | Description                                                                                                   |
+| :----------------------- | :---------------------------------------------------- | :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------ |
+| `path`                   | `string`                                              | `'/nodeui'`                                                         | Base route prefix where console UI and API are mounted.                                                       |
+| `host`                   | `string`                                              | `'127.0.0.1'`                                                       | Allowed host interface for incoming requests.                                                                 |
+| `enabled`                | `boolean`                                             | `env-based`                                                         | Explicitly enable (`true`) or disable (`false`) console.                                                      |
+| `maskSecrets`            | `boolean`                                             | `true`                                                              | Automatically redact sensitive environment and config values.                                                 |
+| `requestLogSize`         | `number`                                              | `500`                                                               | In-memory capacity for HTTP request logs.                                                                     |
+| `captureRequestDetail`   | `boolean \| { query, headers, bodies, maxBodyBytes }` | `{ query: true, headers: true, bodies: false, maxBodyBytes: 4096 }` | What extra detail is recorded per request. `false` records none. Textual bodies only, masked and size-capped. |
+| `logSize`                | `number`                                              | `500`                                                               | In-memory capacity for captured console messages.                                                             |
+| `pollIntervalMs`         | `number`                                              | `2000`                                                              | Sampler collection interval for CPU and event-loop lag.                                                       |
+| `inactivityTimeoutMs`    | `number`                                              | `60000`                                                             | Idling timeout before background samplers pause.                                                              |
+| `confirmTtlMs`           | `number`                                              | `60000`                                                             | Expiration window for mutation confirmation nonces.                                                           |
+| `heapSnapshotDir`        | `string`                                              | `<tmp>/nodeui-heap`                                                 | Destination directory where `.heapsnapshot` files are written.                                                |
+| `allowedHosts`           | `string[]`                                            | `[]`                                                                | Extra `Host` header names accepted besides loopback names.                                                    |
+| `allowedOrigins`         | `string[]`                                            | `[]`                                                                | Extra `Origin` values accepted for cross-origin calls.                                                        |
+| `allowedRemoteAddresses` | `string[]`                                            | `[]`                                                                | Extra client IPs / IPv4 CIDRs accepted (e.g. Docker bridge).                                                  |
+| `trustProxy`             | `boolean`                                             | `false`                                                             | Accept requests carrying `X-Forwarded-*` headers.                                                             |
+| `authToken`              | `string`                                              | `undefined`                                                         | Require this token (`Authorization: Bearer`, cookie or `?token=`).                                            |
+| `maxSseClients`          | `number`                                              | `10`                                                                | Concurrent live-stream connections allowed.                                                                   |
+| `plugins`                | `NodeUIProvider[]`                                    | `[]`                                                                | Custom panels.                                                                                                |
+| `healthChecks`           | `Record<string, () => unknown>`                       | `{}`                                                                | Dependency checks shown in the Health panel.                                                                  |
+| `outgoingLogSize`        | `number`                                              | `200`                                                               | Capacity of the outgoing HTTP call buffer.                                                                    |
+| `config`                 | `object \| fn`                                        | `undefined`                                                         | Custom metadata object or getter to display in the Environment panel.                                         |
 
 ### Environment Variables
 
@@ -418,6 +422,7 @@ Passed to `nodeui(options)` or `NodeUIModule.register(options)`:
 | `NODEUI_INACTIVITY_TIMEOUT_MS` | `60000`             | Inactivity timer before providers stop background polling.   |
 | `NODEUI_REQUEST_LOG_SIZE`      | `500`               | Capacity of the request circular buffer.                     |
 | `NODEUI_LOG_SIZE`              | `500`               | Capacity of the console log circular buffer.                 |
+| `NODEUI_CAPTURE_BODIES`        | `false`             | `true` records masked request/response bodies.               |
 | `NODEUI_CONFIRM_TTL_MS`        | `60000`             | Nonce validity duration.                                     |
 | `NODEUI_HEAP_SNAPSHOT_DIR`     | `<tmp>/nodeui-heap` | Snapshot output directory.                                   |
 | `NODEUI_TOKEN`                 | `unset`             | Require this access token.                                   |
@@ -448,10 +453,13 @@ All JSON endpoints return an envelope format:
 | `GET`  | `/api/event-loop`    | Current, maximum, and average event-loop lag times.               |
 | `GET`  | `/api/requests`      | Recent HTTP traffic buffer and aggregate metrics.                 |
 | `GET`  | `/api/outgoing`      | Recent outgoing HTTP calls with status and duration.              |
-| `GET`  | `/api/routes`        | Introspected Express / NestJS router map.                         |
+| `GET`  | `/api/routes`        | Introspected Express / Fastify / NestJS routes.                   |
 | `GET`  | `/api/logs`          | Captured console logs buffer with timestamp and level.            |
 | `GET`  | `/api/env`           | Masked environment variables and app configurations.              |
 | `GET`  | `/api/startup`       | Startup timeline marks registered via `server.mark()`.            |
+| `GET`  | `/api/metrics`       | Per-second request and error buckets for the last minute.         |
+| `GET`  | `/api/config`        | Effective (non-secret) configuration, panel list and plugin meta. |
+| `GET`  | `/api/<plugin-id>`   | Output of each registered custom panel (`plugins` option).        |
 | `GET`  | `/api/live`          | **Server-Sent Events (SSE)** real-time metric stream.             |
 | `POST` | `/api/confirmations` | Issues a single-use cryptographic token for mutating actions.     |
 | `POST` | `/api/heap-snapshot` | Takes a V8 heap snapshot (requires `x-nodeui-confirm` header).    |
@@ -460,16 +468,17 @@ All JSON endpoints return an envelope format:
 
 ## 📊 Benchmarks & Performance
 
-Synthetic latency and throughput overhead testing (`scripts/bench.mjs`, Node 22, Express 5, 5,000 requests per scenario):
+`npm run bench` (`scripts/bench.mjs`) runs scenarios in **alternating rounds** so machine drift hits each one equally, and reports the median across rounds plus the min–max spread. Sample run: Node 24, Express 5, 7 rounds × 3,000 requests, concurrency 8, trivial JSON handler, loopback.
 
-| Scenario                                | Mean Latency |    p50    |    p95    |    p99     | Throughput |
-| :-------------------------------------- | :----------: | :-------: | :-------: | :--------: | :--------: |
-| **Baseline** _(No NodeUI)_              |  `4.12 ms`   | `3.53 ms` | `7.55 ms` | `12.66 ms` | `243 rps`  |
-| **NodeUI Enabled** _(Recording active)_ |  `3.92 ms`   | `3.44 ms` | `7.93 ms` | `13.11 ms` | `255 rps`  |
-| **NodeUI Disabled** _(Fail-closed)_     |  `3.12 ms`   | `2.84 ms` | `3.84 ms` | `8.33 ms`  | `321 rps`  |
+| Scenario                        |     p50 (min–max)     |    p95    |    p99    | Throughput  |  p50 vs baseline   |
+| :------------------------------ | :-------------------: | :-------: | :-------: | :---------: | :----------------: |
+| **Baseline** _(no NodeUI)_      | `1.57 ms` (1.33–2.03) | `2.04 ms` | `2.75 ms` | `4,864 rps` |         —          |
+| **Enabled** _(default capture)_ | `1.74 ms` (1.55–2.11) | `2.32 ms` | `3.30 ms` | `4,459 rps` |     `+0.18 ms`     |
+| **Enabled + body capture**      | `1.80 ms` (1.62–4.89) | `2.39 ms` | `4.13 ms` | `4,280 rps` |     `+0.24 ms`     |
+| **Disabled** _(fail-closed)_    | `1.54 ms` (1.34–1.98) | `1.89 ms` | `2.79 ms` | `5,081 rps` | `−0.03 ms` (noise) |
 
-> [!TIP]
-> Memory and CPU overhead are practically negligible under typical development and local staging workloads.
+> [!NOTE]
+> On a handler that does no work, enabling NodeUI costs roughly 0.2 ms per request (about 10% here); the absolute cost is what matters and it is fixed, not proportional, so it shrinks relative to real handlers. Differences inside the min–max spread are noise. NodeUI is meant for local development and staging, not as a production APM; re-run `npm run bench` on your hardware.
 
 ---
 
@@ -484,7 +493,7 @@ By default, NodeUI binds strictly to <code>127.0.0.1</code> and rejects non-loop
 <details>
 <summary><b>Why does the Routes panel show "No Express router captured yet"?</b></summary>
 <br/>
-NodeUI discovers routes lazily upon receiving the first request through the app router. Trigger any request against your backend API endpoints, then refresh the NodeUI dashboard.
+NodeUI discovers Express routes lazily upon receiving the first request through the app router (Fastify routes are collected as they are registered). Trigger any request against your backend API endpoints, then refresh the NodeUI dashboard.
 </details>
 
 <details>
