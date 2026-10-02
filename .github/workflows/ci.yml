@@ -44,6 +44,20 @@ jobs:
       - run: npm test -w @singhak/nodeui-express
       - run: npm run typecheck -w @singhak/nodeui-express
 
+  koa-3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The peer range allows Koa 2 and 3; exercise the newer major too.
+      - run: npm install --no-save -w @singhak/nodeui-koa koa@3
+      - run: npm test -w @singhak/nodeui-koa
+      - run: npm run typecheck -w @singhak/nodeui-koa
+
   fastify-4:
     runs-on: ubuntu-latest
     steps:

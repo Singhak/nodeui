@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { Test } from '@nestjs/testing';
 import { Controller, Get, HttpException, Module, type INestApplication } from '@nestjs/common';
+import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { NodeUILogger, NodeUIModule, NodeUIService, type NodeUIOptions } from '../src/index';
@@ -74,6 +75,32 @@ describe('@singhak/nodeui-nestjs', () => {
     const app = await createApp({ env: { NODE_ENV: 'production' } });
     const res = await request(app.getHttpServer()).get('/nodeui/api/config');
     expect(res.status).toBe(404);
+  });
+});
+
+describe('NestJS on the Fastify platform', () => {
+  it('serves the console and records requests', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [NodeUIModule.register(), BoomModule],
+    }).compile();
+    const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+    await app.init();
+    await app.getHttpAdapter().getInstance().ready();
+    try {
+      const inject = (url: string) =>
+        app.getHttpAdapter().getInstance().inject({ method: 'GET', url });
+      const config = await inject('/nodeui/api/config');
+      expect(config.statusCode).toBe(200);
+      expect(JSON.parse(config.body).data.enabled).toBe(true);
+      expect((await inject('/boom')).statusCode).toBe(500);
+      expect((await inject('/missing')).statusCode).toBe(404);
+      const requests = JSON.parse((await inject('/nodeui/api/requests')).body).data;
+      expect(requests.entries.map((e: { path: string }) => e.path)).toEqual(['/boom', '/missing']);
+      const errors = JSON.parse((await inject('/nodeui/api/errors')).body).data;
+      expect(errors.total).toBe(1);
+    } finally {
+      await app.close();
+    }
   });
 });
 

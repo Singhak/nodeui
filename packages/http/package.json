@@ -1,7 +1,7 @@
 {
-  "name": "@singhak/nodeui-nestjs",
+  "name": "@singhak/nodeui-http",
   "version": "0.3.1",
-  "description": "NestJS module adapter for the NodeUI developer console.",
+  "description": "Plain node:http adapter (also Next.js custom servers) for the NodeUI developer console.",
   "license": "Apache-2.0",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
@@ -19,8 +19,9 @@
   ],
   "sideEffects": false,
   "keywords": [
-    "nestjs",
-    "module",
+    "http",
+    "nextjs",
+    "custom-server",
     "console",
     "developer-tools",
     "observability",
@@ -49,26 +50,8 @@
   "dependencies": {
     "@singhak/nodeui-core": "^0.3.1"
   },
-  "peerDependencies": {
-    "@nestjs/common": "^11.0.0",
-    "@nestjs/core": "^11.0.0",
-    "reflect-metadata": "^0.2.0",
-    "rxjs": "^7.8.0"
-  },
   "devDependencies": {
-    "@nestjs/common": "^11.2.1",
-    "@nestjs/core": "^11.2.1",
-    "@nestjs/platform-express": "^11.2.1",
-    "@nestjs/platform-fastify": "^11.2.7",
-    "@nestjs/testing": "^11.2.1",
-    "@types/express": "^5.0.0",
     "@types/node": "^22.19.0",
-    "@types/supertest": "^6.0.2",
-    "express": "^5.2.1",
-    "fastify": "^5.12.5",
-    "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2",
-    "supertest": "^7.1.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

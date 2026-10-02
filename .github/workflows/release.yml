@@ -28,7 +28,7 @@ jobs:
       - run: npm run release:check
       - name: Publish
         run: |
-          for pkg in core express fastify nestjs; do
+          for pkg in core express fastify nestjs koa hapi hono http; do
             npm publish --workspace "@singhak/nodeui-$pkg" --access public --provenance
           done
         env:

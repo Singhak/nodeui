@@ -38,6 +38,26 @@ afterEach(async () => {
 });
 
 describe('@singhak/nodeui-fastify', () => {
+  it('attributes logs from async handlers to their request', async () => {
+    const app = Fastify();
+    apps.push(app);
+    await app.register(nodeui({ enabled: true }));
+    app.get('/work', async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      console.log('inside fastify handler');
+      return 'ok';
+    });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const port = (app.server.address() as AddressInfo).port;
+    await get(port, '/nodeui/api/logs');
+    await get(port, '/work');
+    const requests = JSON.parse((await get(port, '/nodeui/api/requests')).body).data.entries;
+    const logs = JSON.parse((await get(port, '/nodeui/api/logs')).body).data.entries;
+    const id = requests.find((e: { path: string }) => e.path === '/work').id;
+    const entry = logs.find((e: { message: string }) => e.message === 'inside fastify handler');
+    expect(entry.requestId).toBe(id);
+  });
+
   it('records route errors in the errors panel', async () => {
     const app = Fastify();
     apps.push(app);

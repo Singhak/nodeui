@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 
-const PACKAGES = ['core', 'express', 'fastify', 'nestjs'];
+const ADAPTERS = ['express', 'fastify', 'nestjs', 'koa', 'hapi', 'hono', 'http'];
+const PACKAGES = ['core', ...ADAPTERS];
 
 const pkgJson = (name) =>
   JSON.parse(readFileSync(resolve(root, 'packages', name, 'package.json'), 'utf8'));
@@ -36,7 +37,7 @@ for (const name of PACKAGES) {
 }
 
 const core = pkgJson('core');
-for (const name of ['express', 'fastify', 'nestjs']) {
+for (const name of ADAPTERS) {
   const adapter = pkgJson(name);
   const dep = adapter.dependencies?.['@singhak/nodeui-core'];
   if (!dep) {
@@ -59,5 +60,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log(
-  `release:check OK — @singhak/nodeui-core, @singhak/nodeui-express, @singhak/nodeui-fastify, @singhak/nodeui-nestjs all at v${core.version}.`,
+  `release:check OK — ${PACKAGES.map((n) => `@singhak/nodeui-${n}`).join(', ')} all at v${core.version}.`,
 );

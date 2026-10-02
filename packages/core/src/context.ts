@@ -34,6 +34,15 @@ export function runWithRequestId<T>(requestId: number, fn: () => T): T {
 }
 
 /**
+ * Runs `fn` inside the request's context when it was recorded by the NodeUI
+ * middleware (otherwise just calls `fn`). For adapters that own the `next` call.
+ */
+export function runInRequestContext<T>(req: IncomingMessage, fn: () => T): T {
+  const requestId = ids.get(req);
+  return requestId === undefined ? fn() : storage.run({ requestId }, fn);
+}
+
+/**
  * Attributes the rest of the current async chain to the request. For adapters
  * (Fastify) whose hooks cannot wrap the downstream handler in `run`.
  */

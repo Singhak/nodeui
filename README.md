@@ -4,7 +4,7 @@
 
 ### **The Local-Only Developer Console & Observability Suite for Node.js**
 
-_An embedded, zero-infrastructure developer dashboard for Express, Fastify and NestJS — inspired by Spring Boot Admin & Quarkus Dev UI._
+_An embedded, zero-infrastructure developer dashboard for Express, Fastify, NestJS, Koa, Hapi, Hono and plain Node — inspired by Spring Boot Admin & Quarkus Dev UI._
 
 <br/>
 
@@ -12,7 +12,7 @@ _An embedded, zero-infrastructure developer dashboard for Express, Fastify and N
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D%2018.0.0-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Express](https://img.shields.io/badge/Framework-Express%20%7C%20Fastify%20%7C%20NestJS-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com)
+[![Express](https://img.shields.io/badge/Framework-Express%20%7C%20Fastify%20%7C%20NestJS%20%7C%20Koa%20%7C%20Hapi%20%7C%20Hono-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
 <br/>
@@ -77,7 +77,11 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 | [`@singhak/nodeui-core`](packages/core)       | `v0.3.1` | Framework-neutral observability engine, REST/SSE provider registry, static SPA server. |
 | [`@singhak/nodeui-express`](packages/express) | `v0.3.1` | Middleware adapter for Express applications.                                           |
 | [`@singhak/nodeui-fastify`](packages/fastify) | `v0.3.1` | Plugin adapter for Fastify 4 / 5 applications.                                         |
-| [`@singhak/nodeui-nestjs`](packages/nestjs)   | `v0.3.1` | Dynamic module adapter for NestJS applications.                                        |
+| [`@singhak/nodeui-nestjs`](packages/nestjs)   | `v0.3.1` | Dynamic module adapter for NestJS applications (Express or Fastify platform).          |
+| [`@singhak/nodeui-koa`](packages/koa)         | `v0.3.1` | Middleware adapter for Koa 2 / 3.                                                      |
+| [`@singhak/nodeui-hapi`](packages/hapi)       | `v0.3.1` | Plugin adapter for Hapi 21.                                                            |
+| [`@singhak/nodeui-hono`](packages/hono)       | `v0.3.1` | Middleware adapter for Hono on Node.js (`@hono/node-server`).                          |
+| [`@singhak/nodeui-http`](packages/http)       | `v0.3.1` | Plain `node:http` adapter, also for Next.js custom servers and Restify.                |
 | [`apps/ui`](apps/ui)                          | —        | React + Vite single-page console embedded into core static build.                      |
 | [`apps/demo-express`](apps/demo-express)      | —        | Sandbox Express verification server.                                                   |
 | [`apps/demo-nestjs`](apps/demo-nestjs)        | —        | Sandbox NestJS verification server.                                                    |
@@ -267,6 +271,21 @@ const app = Fastify();
 await app.register(nodeui());
 await app.listen({ port: 3000, host: '127.0.0.1' });
 ```
+
+### 4. Koa, Hapi, Hono and plain `node:http`
+
+```typescript
+// Koa
+app.use(nodeui().middleware); // @singhak/nodeui-koa
+// Hapi
+await server.register(nodeui().plugin); // @singhak/nodeui-hapi
+// Hono (Node runtime)
+app.use('*', nodeui().middleware); // @singhak/nodeui-hono
+// Next.js custom server, Restify, raw node:http
+nodeui().attach(httpServer); // @singhak/nodeui-http
+```
+
+See each package's README for details. NestJS also works on the Fastify platform. Next.js route handlers and Edge runtimes expose no Node request/response and are not supported.
 
 > NestJS tip: to see Nest's own `Logger` output in the Logs panel (Nest writes to `process.stdout`, not `console`), use
 > `app.useLogger(app.get(NodeUILogger))` from `@singhak/nodeui-nestjs`.
