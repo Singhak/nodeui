@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-02
+
+> 0.4.0 was never published to npm; its changes (listed below) ship in this release together with the 0.5.0 changes.
+
 ### Added
 
+- `@singhak/nodeui-cli`: `nodeui attach -- <command>` runs any Node app with the console attached via a preload (no code changes), and `nodeui dashboard name=url …` shows several consoles on one loopback page with a proxy to each.
+- `nodeui mcp <url>…`: a read-only MCP (stdio) server with an overview digest and tools for errors, requests (joined with their queries, outgoing calls and logs), queries, outgoing calls, logs and routes, so AI agents can read a running app.
+- `uiAssetsDir()` exported from core: the directory of the bundled console, for serving it from your own host or gateway.
 - `capture` option (`NODEUI_CAPTURE`): `'always'` (new default) records outgoing calls, queries and logs from startup so activity before you open the console is not lost; `'lazy'` keeps the previous open-a-panel-first behaviour.
 - IPv6 support in `allowedRemoteAddresses`: IPv6 CIDRs (`fd00::/8`) and value-based comparison of IPv6 literals. Entries that are not a valid IP or CIDR are reported at startup instead of silently never matching.
 - `npm run bench:hooks` measures the cost of the always-on capture hooks.
@@ -23,15 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Stopping outgoing-call capture no longer overwrites an `http.request` / `https.request` wrapper installed by another tool (OpenTelemetry, Sentry, an APM agent) on top of NodeUI's, and a retired NodeUI wrapper can no longer record a call twice after a restart.
 
-## [0.5.0] - unreleased
-
-### Added
-
-- `@singhak/nodeui-cli`: `nodeui attach -- <command>` runs any Node app with the console attached via a preload (no code changes), and `nodeui dashboard name=url …` shows several consoles on one loopback page with a proxy to each.
-- `nodeui mcp <url>…`: a read-only MCP (stdio) server with an overview digest and tools for errors, requests (joined with their queries, outgoing calls and logs), queries, outgoing calls, logs and routes, so AI agents can read a running app.
-- `uiAssetsDir()` exported from core: the directory of the bundled console, for serving it from your own host or gateway.
-
-## [0.4.0] - 2026-10-02
+## [0.4.0] - not published (included in 0.5.0)
 
 ### Added
 
