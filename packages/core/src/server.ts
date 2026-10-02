@@ -418,7 +418,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       pollIntervalMs: config.pollIntervalMs,
       panels: registry.ids(),
       masking: { enabled: config.maskSecrets, pattern: SECRET_KEY_PATTERN.source },
-      authRequired: config.authRequired,
+      locked: config.authRequired,
       plugins: pluginMeta,
     };
   }

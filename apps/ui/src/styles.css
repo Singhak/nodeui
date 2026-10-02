@@ -56,6 +56,9 @@ body {
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 16px;
+  /* long tables (env, requests, outgoing) scroll instead of stretching the page */
+  max-height: 520px;
+  overflow: auto;
 }
 
 .panel-title {

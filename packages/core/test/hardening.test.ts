@@ -207,6 +207,19 @@ describe('request guard', () => {
     });
   });
 
+  it('reports lock state in /config as a real boolean (not masked)', async () => {
+    await withServer({}, async ({ base }) => {
+      const body = (await (await fetch(`${base}/nodeui/api/config`)).json()) as {
+        data: { locked: unknown };
+      };
+      expect(body.data.locked).toBe(false);
+    });
+    await withServer({ authToken: 'x' }, async ({ port }) => {
+      const res = await rawGet(port, '/nodeui/api/config', { Authorization: 'Bearer x' });
+      expect((JSON.parse(res.body) as { data: { locked: unknown } }).data.locked).toBe(true);
+    });
+  });
+
   it('applies the token to the live stream as well', async () => {
     await withServer({ authToken: 'letmein' }, async ({ port }) => {
       const res = await rawGet(port, '/nodeui/api/live', {});

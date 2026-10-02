@@ -82,6 +82,16 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 
 ---
 
+## 📸 What It Looks Like
+
+The Express demo (`apps/demo-express`) running with generated traffic, showing health with dependency checks, requests, outgoing calls, masked environment values, logs and a custom **Job Queue** plugin panel:
+
+![NodeUI console running against the Express demo](docs/screenshots/console-full.png)
+
+Notice that `DATABASE_URL`, `JWT_SECRET` and `STRIPE_API_KEY` are shown as `[REDACTED]`, and that the log line `token=abc123` was scrubbed to `token=[REDACTED]`.
+
+---
+
 ## 🧭 How to Use It in Your App
 
 **1. Install the adapter for your framework** (it pulls in `@singhak/nodeui-core`):
@@ -167,6 +177,8 @@ npm run demo:express
 # OR Start NestJS Demo -> Open http://127.0.0.1:3001/nodeui
 npm run demo:nestjs
 ```
+
+Set `DEMO_TRAFFIC=1` for a self-generating stream of requests, errors and outgoing calls so every panel has live data (PowerShell: `$env:DEMO_TRAFFIC=1; npm run demo:express`). The Express demo also shows `healthChecks`, a custom `plugins` panel and a curated `env`; the NestJS demo shows `NodeUILogger`.
 
 ---
 

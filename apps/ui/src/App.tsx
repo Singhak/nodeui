@@ -113,7 +113,7 @@ export default function App() {
         ) : (
           <span className="status-pill status-ok">live</span>
         )}
-        {config?.authRequired ? (
+        {config?.locked ? (
           <span className="lock-badge" title="Access token required" aria-label="token protected">
             🔒 token
           </span>

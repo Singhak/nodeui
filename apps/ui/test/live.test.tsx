@@ -72,3 +72,27 @@ describe('live stream rejection (e.g. 429 too-many-streams)', () => {
     (globalThis as { EventSource: unknown }).EventSource = undefined;
   });
 });
+
+describe('late subscribers (plugin panels)', () => {
+  it('reopens the stream so a panel mounted after connect is included', async () => {
+    FakeEventSource.instances = [];
+    (globalThis as { EventSource: unknown }).EventSource = FakeEventSource;
+    const offHealth = liveClient.subscribe('health', () => undefined);
+    FakeEventSource.open();
+    expect(liveClient.isConnected('health')).toBe(true);
+
+    const got: Envelope<unknown>[] = [];
+    const offJobs = liveClient.subscribe('jobs', (env) => got.push(env));
+    // not part of the open stream yet, so callers must keep polling
+    expect(liveClient.isConnected('jobs')).toBe(false);
+
+    await new Promise((r) => setTimeout(r, 80));
+    const last = FakeEventSource.instances.at(-1);
+    expect(decodeURIComponent(last?.url ?? '')).toContain('jobs');
+    last?.onopen?.();
+    expect(liveClient.isConnected('jobs')).toBe(true);
+
+    offJobs();
+    offHealth();
+  });
+});

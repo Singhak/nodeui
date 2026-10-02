@@ -268,7 +268,7 @@ export interface ConfigData {
   pollIntervalMs: number;
   panels: PanelId[];
   masking: { enabled: boolean; pattern: string };
-  authRequired: boolean;
+  locked: boolean;
   /** Plugin panel ids and titles, in registration order. */
   plugins: Array<{ id: PanelId; title: string }>;
 }

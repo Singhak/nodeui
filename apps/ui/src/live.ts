@@ -19,12 +19,18 @@ class LiveClient {
   private retryMs = 1000;
   private failures = 0;
   private reconnectTimer: number | undefined;
+  /** Panel ids the open stream was requested with. */
+  private requested = new Set<PanelId>();
+  private restartTimer: number | undefined;
 
   subscribe(id: PanelId, cb: Subscriber): () => void {
     const set = this.subscribers.get(id) ?? new Set<Subscriber>();
     set.add(cb);
     this.subscribers.set(id, set);
     this.ensure();
+    // A panel mounted after the stream opened (e.g. a plugin panel, which is
+    // only known once /config has loaded) is not part of it: reopen once.
+    if (this.es && !this.requested.has(id)) this.scheduleRestart();
     return () => {
       const current = this.subscribers.get(id);
       if (!current) return;
@@ -36,13 +42,14 @@ class LiveClient {
   }
 
   isConnected(id: PanelId): boolean {
-    return this.connected && this.subscribers.has(id);
+    return this.connected && this.requested.has(id) && this.subscribers.has(id);
   }
 
   private ensure(): void {
     if (typeof EventSource === 'undefined') return;
     if (this.es) return;
-    const panels = [...this.subscribers.keys()].join(',');
+    this.requested = new Set(this.subscribers.keys());
+    const panels = [...this.requested].join(',');
     const es = new EventSource(`${apiBase()}/live?panels=${encodeURIComponent(panels)}`);
     this.es = es;
     es.onopen = () => {
@@ -75,6 +82,18 @@ class LiveClient {
     };
   }
 
+  /** Batches late subscriptions into a single reconnect. */
+  private scheduleRestart(): void {
+    if (this.restartTimer !== undefined) return;
+    this.restartTimer = window.setTimeout(() => {
+      this.restartTimer = undefined;
+      this.es?.close();
+      this.es = null;
+      this.connected = false;
+      this.ensure();
+    }, 50);
+  }
+
   private scheduleReconnect(): void {
     if (this.reconnectTimer !== undefined) return;
     this.reconnectTimer = window.setTimeout(() => {
@@ -89,9 +108,14 @@ class LiveClient {
       window.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
+    if (this.restartTimer !== undefined) {
+      window.clearTimeout(this.restartTimer);
+      this.restartTimer = undefined;
+    }
     this.es?.close();
     this.es = null;
     this.connected = false;
+    this.requested = new Set();
     this.retryMs = 1000;
     this.failures = 0;
   }

@@ -1,9 +1,50 @@
 import express from 'express';
 import { nodeui } from '@singhak/nodeui-express';
 
+const port = Number(process.env.PORT ?? 3000);
+const host = '127.0.0.1';
+const base = `http://${host}:${port}`;
+
+const jobs = { waiting: 3, active: 1, completed: 128, failed: 2 };
+
 const app = express();
 const { middleware, server } = nodeui({
-  config: { appName: 'demo-express', version: '0.1.0', port: Number(process.env.PORT ?? 3000) },
+  // A curated environment for the Environment panel (defaults to process.env).
+  // Values under secret-looking keys are masked automatically.
+  env: {
+    NODE_ENV: 'development',
+    PORT: String(port),
+    APP_NAME: 'demo-express',
+    LOG_LEVEL: 'debug',
+    DATABASE_URL: 'postgres://app:s3cret@localhost:5432/demo',
+    REDIS_URL: 'redis://localhost:6379',
+    JWT_SECRET: 'super-secret-signing-key',
+    STRIPE_API_KEY: 'sk_test_51Hxxxxxxxxxxxxxxxx',
+  },
+  config: {
+    appName: 'demo-express',
+    version: '0.3.0',
+    port,
+    // masked automatically:
+    DATABASE_URL: 'postgres://app:s3cret@localhost:5432/demo',
+    apiToken: 'demo-token-123',
+  },
+  // Dependency checks shown in the Health panel.
+  healthChecks: {
+    postgres: async () => new Promise((resolve) => setTimeout(resolve, 12)),
+    redis: async () => new Promise((resolve) => setTimeout(resolve, 3)),
+  },
+  // A custom panel: any provider with an id and get().
+  plugins: [
+    {
+      id: 'jobs',
+      title: 'Job Queue',
+      get: () => ({
+        ok: true,
+        data: Object.entries(jobs).map(([state, count]) => ({ state, count })),
+      }),
+    },
+  ],
 });
 
 app.use(express.json());
@@ -21,6 +62,12 @@ app.get('/slow', (_req, res) => {
   setTimeout(() => res.json({ message: 'slow response finished' }), 200);
 });
 
+// Makes an outgoing HTTP call so the Outgoing panel has something to show.
+app.get('/proxy', async (_req, res) => {
+  const upstream = await fetch(`${base}/hello`);
+  res.json({ upstreamStatus: upstream.status });
+});
+
 app.get('/boom', () => {
   throw new Error('intentional demo failure');
 });
@@ -29,12 +76,21 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: err.message });
 });
 
-const port = Number(process.env.PORT ?? 3000);
-const host = '127.0.0.1';
-
 app.listen(port, host, () => {
   server.mark('listening');
   server.addLogSource({ level: 'info', message: 'demo-express listening on port ' + port });
   console.warn('[demo-express] log interception is active while the Logs panel is open');
-  console.log(`[demo-express] listening on http://${host}:${port}`);
+  console.log(`[demo-express] listening on ${base}  ->  console at ${base}/nodeui`);
+
+  // DEMO_TRAFFIC=1 keeps generating requests so the panels have live data.
+  if (process.env.DEMO_TRAFFIC === '1') {
+    const paths = ['/hello', '/users/42', '/slow', '/proxy', '/boom', '/hello', '/missing'];
+    let i = 0;
+    setInterval(() => {
+      const path = paths[i++ % paths.length]!;
+      void fetch(base + path).catch(() => undefined);
+      if (path === '/slow') console.warn('[demo-express] slow endpoint hit');
+      if (path === '/boom') console.error('[demo-express] token=abc123 failed for /boom');
+    }, 250).unref();
+  }
 });

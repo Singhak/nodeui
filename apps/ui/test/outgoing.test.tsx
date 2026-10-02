@@ -171,7 +171,7 @@ describe('App', () => {
     pollIntervalMs: 2000,
     panels: ['outgoing', 'queue'],
     masking: { enabled: true, pattern: '' },
-    authRequired: true,
+    locked: true,
     plugins: [{ id: 'queue', title: 'Job Queue' }],
   };
 
