@@ -1,6 +1,6 @@
 {
   "name": "@singhak/nodeui-http",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Plain node:http adapter (also Next.js custom servers) for the NodeUI developer console.",
   "license": "Apache-2.0",
   "main": "./dist/index.cjs",
@@ -48,7 +48,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@singhak/nodeui-core": "^0.3.1"
+    "@singhak/nodeui-core": "^0.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
