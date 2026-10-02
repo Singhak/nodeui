@@ -14,12 +14,17 @@ async function bootstrap(): Promise<void> {
   console.log(`[demo-nestjs] listening on http://${host}:${port}  ->  console at /nodeui`);
 
   if (process.env.DEMO_TRAFFIC === '1') {
-    const paths = ['/hello', '/users/42', '/hello'];
+    const paths = ['/hello', '/users/42', '/orders', 'POST /orders', '/crash/42', '/crash/43'];
     let i = 0;
-    setInterval(
-      () => void fetch(`http://${host}:${port}${paths[i++ % paths.length]}`),
-      250,
-    ).unref();
+    setInterval(() => {
+      const path = paths[i++ % paths.length]!;
+      const post = path.startsWith('POST ');
+      void fetch(`http://${host}:${port}${path.replace('POST ', '')}`, {
+        method: post ? 'POST' : 'GET',
+        headers: post ? { 'content-type': 'application/json' } : undefined,
+        body: post ? JSON.stringify({ customer: 'Ada', password: 'hunter2' }) : undefined,
+      }).catch(() => undefined);
+    }, 250).unref();
   }
 }
 

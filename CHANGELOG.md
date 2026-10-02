@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-02
+
 ### Added
 
 - `@singhak/nodeui-cli`: `nodeui attach -- <command>` runs any Node app with the console attached via a preload (no code changes), and `nodeui dashboard name=url …` shows several consoles on one loopback page with a proxy to each.
@@ -29,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Demos (Express, NestJS) now exercise errors, queries with an N+1 and a slow statement, failing outgoing calls, request bodies and persistence. `NodeUIService` (Nest) gained `recordQuery` and `recordError`.
 - `npm run bench` now alternates scenarios over several rounds and reports medians with spread; README numbers and overhead wording updated.
 - Text masking keeps quotes around redacted values so masked JSON-like text stays well-formed.
 - Root `package.json` is marked `private`.
