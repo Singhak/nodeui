@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import type {
   ApiEnvelope,
   ConfigData,
@@ -28,7 +28,7 @@ import { ConfirmationStore } from './confirmations';
 import { DEFAULT_LOG_SIZE } from './constants';
 import { startSse } from './sse';
 import { ProviderRegistry } from './registry';
-import { resolveStaticAsset } from './static';
+import { resolveStaticAsset, uiAssetsDir } from './static';
 import { MemoryProvider } from './providers/memory';
 import { CpuProvider } from './providers/cpu';
 import { EventLoopLagProvider } from './providers/event-loop';
@@ -175,8 +175,6 @@ export type NodeUIMiddleware = (
   res: ServerResponse,
   next: () => void,
 ) => void;
-
-const STATIC_ROOT = resolve(__dirname, '..', 'static');
 
 const SSE_HEARTBEAT_MS = 15_000;
 
@@ -687,7 +685,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
 
   function serveStatic(req: IncomingMessage, res: ServerResponse, urlPath: string): void {
     const relative = urlPath.slice(path.length);
-    const asset = resolveStaticAsset(STATIC_ROOT, relative);
+    const asset = resolveStaticAsset(uiAssetsDir(), relative);
     if (!asset) {
       sendJson(res, 404, { ok: false, error: { code: 'not-found', message: 'Not found' } });
       return;

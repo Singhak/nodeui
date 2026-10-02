@@ -17,6 +17,15 @@ const MIME_TYPES: Record<string, string> = {
   '.webmanifest': 'application/manifest+json',
 };
 
+/**
+ * Directory holding the prebuilt console (`index.html` and assets). It ships
+ * inside this package, so the UI always matches the API it talks to. Use it to
+ * serve the console from your own host or gateway.
+ */
+export function uiAssetsDir(): string {
+  return resolve(__dirname, '..', 'static');
+}
+
 export interface StaticAsset {
   content: Readable;
   contentType: string;

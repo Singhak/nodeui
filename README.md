@@ -86,6 +86,20 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 | [`apps/demo-express`](apps/demo-express)      | —        | Sandbox Express verification server.                                                   |
 | [`apps/demo-nestjs`](apps/demo-nestjs)        | —        | Sandbox NestJS verification server.                                                    |
 
+### Why the UI is embedded, not a separate package
+
+The console ships **inside `@singhak/nodeui-core`** (`static/`) instead of as its own npm package. The UI and the REST API it calls change together, so a separate `nodeui-ui` could be installed at a mismatched version and break silently; embedding makes that impossible and keeps installation to one dependency. `apps/ui` is therefore a private workspace, built into `packages/core/static` (CI fails if that bundle is stale).
+
+To serve the console from your own host or gateway, use the exported path:
+
+```typescript
+import { uiAssetsDir } from '@singhak/nodeui-core';
+
+const dir = uiAssetsDir(); // …/node_modules/@singhak/nodeui-core/static
+```
+
+The UI derives its API base from the URL it is served at (`<prefix>/` talks to `<prefix>/api`), so it works under any prefix. The `nodeui` CLI uses exactly this for its multi-service dashboard.
+
 ---
 
 ## 📸 What It Looks Like

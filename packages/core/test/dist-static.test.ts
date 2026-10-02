@@ -43,4 +43,14 @@ describe.skipIf(!built)('built bundles resolve the static console', () => {
     const mod = createRequire(__filename)(join(dist, 'index.cjs')) as { createNodeUI: Factory };
     expect(await serveIndex(mod.createNodeUI)).toContain('<div id="root"></div>');
   });
+
+  it('uiAssetsDir() points at the shipped console in both builds', async () => {
+    const esm = (await import(pathToFileURL(join(dist, 'index.mjs')).href)) as {
+      uiAssetsDir(): string;
+    };
+    const cjs = createRequire(__filename)(join(dist, 'index.cjs')) as { uiAssetsDir(): string };
+    for (const dir of [esm.uiAssetsDir(), cjs.uiAssetsDir()]) {
+      expect(existsSync(join(dir, 'index.html'))).toBe(true);
+    }
+  });
 });
