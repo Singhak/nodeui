@@ -2,9 +2,9 @@ import { defineConfig } from 'vitepress';
 
 // Served from https://singhak.github.io/nodeui/
 export default defineConfig({
-  title: 'NodeUI',
+  title: 'NodeUI Docs',
   description:
-    'Local-only developer console and observability suite for Express, Fastify, NestJS, Koa, Hapi, Hono and node:http.',
+    'NodeUI: a local-only runtime developer console and observability suite (not a UI component library) for Express, Fastify, NestJS, Koa, Hapi, Hono and node:http.',
   base: '/nodeui/',
   cleanUrls: true,
   lastUpdated: true,

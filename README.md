@@ -4,7 +4,7 @@
 
 ### **The Local-Only Developer Console & Observability Suite for Node.js**
 
-_An embedded, zero-infrastructure developer dashboard for Express, Fastify, NestJS, Koa, Hapi, Hono and plain Node — inspired by Spring Boot Admin & Quarkus Dev UI._
+_NodeUI is a runtime developer console for your Node.js app, not a UI component library. An embedded, zero-infrastructure developer dashboard for Express, Fastify, NestJS, Koa, Hapi, Hono and plain Node — inspired by Spring Boot Admin & Quarkus Dev UI._
 
 <br/>
 

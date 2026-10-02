@@ -1,7 +1,7 @@
 {
   "name": "@singhak/nodeui-core",
   "version": "0.5.0",
-  "description": "Framework-neutral engine and safety gate for the NodeUI developer console.",
+  "description": "Framework-neutral engine and safety gate for NodeUI, a local runtime developer console for Node.js apps (not a UI component library).",
   "license": "Apache-2.0",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
