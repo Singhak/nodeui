@@ -33,6 +33,7 @@
     "demo:nestjs": "npm run dev -w @singhak/nodeui-demo-nestjs",
     "release:check": "node scripts/release-check.mjs",
     "bench": "node scripts/bench.mjs",
+    "bench:hooks": "node scripts/bench-hooks.mjs",
     "publish": "node scripts/publish.mjs",
     "publish:dry-run": "node scripts/publish.mjs --dry-run"
   },

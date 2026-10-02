@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `capture` option (`NODEUI_CAPTURE`): `'always'` (new default) records outgoing calls, queries and logs from startup so activity before you open the console is not lost; `'lazy'` keeps the previous open-a-panel-first behaviour.
+- IPv6 support in `allowedRemoteAddresses`: IPv6 CIDRs (`fd00::/8`) and value-based comparison of IPv6 literals. Entries that are not a valid IP or CIDR are reported at startup instead of silently never matching.
+- `npm run bench:hooks` measures the cost of the always-on capture hooks.
+
+### Changed
+
+- Capture defaults to `'always'`; set `capture: 'lazy'` to restore the old behaviour. `npm run bench` pins `capture: 'lazy'` because its load generator shares the process.
+- README: framework lists and the Routes description cover all seven adapters; new "Capture and compatibility" section.
+
+### Fixed
+
+- Stopping outgoing-call capture no longer overwrites an `http.request` / `https.request` wrapper installed by another tool (OpenTelemetry, Sentry, an APM agent) on top of NodeUI's, and a retired NodeUI wrapper can no longer record a call twice after a restart.
+
 ## [0.5.0] - unreleased
 
 ### Added
