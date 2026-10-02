@@ -97,6 +97,12 @@ export interface RequestEntry {
   timestampMs: number;
   ip: string;
   route?: string;
+  query?: Record<string, string>;
+  headers?: Record<string, string>;
+  requestBody?: string;
+  requestBodyTruncated?: boolean;
+  responseBody?: string;
+  responseBodyTruncated?: boolean;
 }
 
 export interface RequestsData {

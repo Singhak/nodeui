@@ -22,7 +22,11 @@ export function maskSecretText(text: string): string {
     .replace(URL_CREDENTIALS_PATTERN, `$1${SECRET_MASKED}$2`)
     .replace(BEARER_PATTERN, `$1 ${SECRET_MASKED}`)
     .replace(JWT_PATTERN, SECRET_MASKED)
-    .replace(TEXT_PAIR_PATTERN, `$1$2${SECRET_MASKED}`);
+    .replace(TEXT_PAIR_PATTERN, (_m, name: string, sep: string, value: string) => {
+      // Keep quotes so masked JSON-ish text stays well-formed.
+      const quote = value.startsWith('"') || value.startsWith("'") ? value[0] : '';
+      return `${name}${sep}${quote}${SECRET_MASKED}${quote}`;
+    });
 }
 
 export interface ActivationDecision {

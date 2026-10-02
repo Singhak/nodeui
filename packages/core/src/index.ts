@@ -13,6 +13,7 @@ export * from './confirmations';
 export * from './registry';
 export * from './static';
 export * from './providers';
+export { DEFAULT_REQUEST_DETAIL } from './request-detail';
 export { currentRequestId, enterRequestContext } from './context';
 export { startSse, type SseStream } from './sse';
 export { createNodeUI, serializeEnvelope } from './server';

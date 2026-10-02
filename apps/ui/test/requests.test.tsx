@@ -142,3 +142,23 @@ describe('Requests view', () => {
     await waitFor(() => expect(screen.getByText('No requests observed yet')).toBeInTheDocument());
   });
 });
+
+describe('toCurl with request detail', () => {
+  it('replays query, headers and body, skipping redacted credentials', () => {
+    const curl = toCurl(
+      {
+        method: 'POST',
+        path: '/u',
+        query: { page: '2' },
+        headers: { 'content-type': 'application/json', authorization: '[REDACTED]', host: 'x' },
+        requestBody: '{"a":"it\'s"}',
+      },
+      'http://x',
+    );
+    expect(curl).toContain("'http://x/u?page=2'");
+    expect(curl).toContain("-H 'content-type: application/json'");
+    expect(curl).not.toContain('authorization');
+    expect(curl).not.toContain('host:');
+    expect(curl).toContain(`--data-raw '{"a":"it'\\''s"}'`);
+  });
+});

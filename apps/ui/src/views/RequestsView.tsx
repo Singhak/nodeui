@@ -19,9 +19,70 @@ import type { OutgoingData, OutgoingRequestEntry, RequestEntry } from '../types'
 
 const CLASSES = ['2xx', '3xx', '4xx', '5xx'] as const;
 
-export function toCurl(entry: Pick<RequestEntry, 'method' | 'path'>, origin: string): string {
-  const url = `${origin}${entry.path}`.replace(/'/g, "'\\''");
-  return `curl -X ${entry.method} '${url}'`;
+const SKIPPED_CURL_HEADERS = new Set([
+  'host',
+  'content-length',
+  'connection',
+  'accept-encoding',
+  'transfer-encoding',
+]);
+
+const shellQuote = (value: string): string => `'${value.replace(/'/g, "'\\''")}'`;
+
+export function toCurl(
+  entry: Pick<RequestEntry, 'method' | 'path'> &
+    Partial<Pick<RequestEntry, 'query' | 'headers' | 'requestBody' | 'requestBodyTruncated'>>,
+  origin: string,
+): string {
+  const search = entry.query ? new URLSearchParams(entry.query).toString() : '';
+  const url = `${origin}${entry.path}${search ? `?${search}` : ''}`;
+  const parts = [`curl -X ${entry.method} ${shellQuote(url)}`];
+  for (const [name, value] of Object.entries(entry.headers ?? {})) {
+    // Redacted credentials cannot be replayed; skip them rather than send a placeholder.
+    if (SKIPPED_CURL_HEADERS.has(name) || value === '[REDACTED]') continue;
+    parts.push(`-H ${shellQuote(`${name}: ${value}`)}`);
+  }
+  if (entry.requestBody && !entry.requestBodyTruncated) {
+    parts.push(`--data-raw ${shellQuote(entry.requestBody)}`);
+  }
+  return parts.join(' \\\n  ');
+}
+
+function DetailBlock({ title, data }: { title: string; data?: Record<string, string> }) {
+  const rows = Object.entries(data ?? {});
+  if (rows.length === 0) return null;
+  return (
+    <section aria-label={title}>
+      <h3>{title}</h3>
+      <dl className="detail-list">
+        {rows.map(([k, v]) => (
+          <div key={k}>
+            <dt className="mono">{k}</dt>
+            <dd className="mono wrap-anywhere">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function BodyBlock({
+  title,
+  body,
+  truncated,
+}: {
+  title: string;
+  body?: string;
+  truncated?: boolean;
+}) {
+  if (!body) return null;
+  return (
+    <section aria-label={title}>
+      <h3>{title}</h3>
+      <pre className="curl mono">{body}</pre>
+      {truncated ? <p className="muted-text">Truncated at the configured size limit.</p> : null}
+    </section>
+  );
 }
 
 export function filterRequests(
@@ -369,6 +430,21 @@ function RequestDrawer({ entry, onClose }: { entry: RequestEntry; onClose: () =>
         </span>
       </div>
       <pre className="curl mono">{toCurl(entry, window.location.origin)}</pre>
+      {entry.requestBodyTruncated ? (
+        <p className="muted-text">Request body was truncated, so it is left out of the curl.</p>
+      ) : null}
+      <DetailBlock title="Query" data={entry.query} />
+      <DetailBlock title="Headers" data={entry.headers} />
+      <BodyBlock
+        title="Request body"
+        body={entry.requestBody}
+        truncated={entry.requestBodyTruncated}
+      />
+      <BodyBlock
+        title="Response body"
+        body={entry.responseBody}
+        truncated={entry.responseBodyTruncated}
+      />
       <RequestTimeline entry={entry} />
     </Drawer>
   );

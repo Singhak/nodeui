@@ -46,6 +46,8 @@ export interface NodeUIConfig {
   activationReason: string;
   /** Whether secret masking is applied to panel output. Default true. */
   maskSecrets: boolean;
+  /** What extra request detail is recorded. */
+  requestDetail: Required<RequestDetailOptions>;
   /** Idle time after which background samplers stop. Default 60000. */
   inactivityTimeoutMs: number;
   /** TTL for mutation confirmation nonces. Default 60000. */
@@ -175,6 +177,38 @@ export interface RequestEntry {
   ip: string;
   /** Matched route pattern (e.g. `/users/:id`) when the framework exposes it. */
   route?: string;
+  /** Query parameters (secret-looking keys redacted). */
+  query?: Record<string, string>;
+  /** Request headers (credentials always redacted). */
+  headers?: Record<string, string>;
+  /** Captured request body (opt-in, size-capped, masked). */
+  requestBody?: string;
+  requestBodyTruncated?: boolean;
+  /** Captured response body (opt-in, size-capped, masked). */
+  responseBody?: string;
+  responseBodyTruncated?: boolean;
+}
+
+/** The optional, privacy-sensitive part of a {@link RequestEntry}. */
+export type RequestDetail = Pick<
+  RequestEntry,
+  | 'query'
+  | 'headers'
+  | 'requestBody'
+  | 'requestBodyTruncated'
+  | 'responseBody'
+  | 'responseBodyTruncated'
+>;
+
+export interface RequestDetailOptions {
+  /** Record query parameters. Default true. */
+  query?: boolean;
+  /** Record request headers (credential headers are always redacted). Default true. */
+  headers?: boolean;
+  /** Record request/response bodies of textual content types. Default false. */
+  bodies?: boolean;
+  /** Max bytes kept per body. Default 4096, max 1048576. */
+  maxBodyBytes?: number;
 }
 
 export interface RouteStat {

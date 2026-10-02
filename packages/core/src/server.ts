@@ -14,6 +14,7 @@ import type {
   ProviderResult,
   RouteEntry,
   StartupData,
+  RequestDetailOptions,
 } from './types';
 import { isLoopbackAddress, maskSecrets, resolveActivation, SECRET_KEY_PATTERN } from './safety';
 import { AUTH_COOKIE, createGuard } from './guard';
@@ -28,6 +29,7 @@ import { EventLoopLagProvider } from './providers/event-loop';
 import { HealthProvider } from './providers/health';
 import { HeapSnapshotProvider } from './providers/heap-snapshot';
 import { bindRequestId, runWithRequestId } from './context';
+import { captureRequestDetail, resolveRequestDetail } from './request-detail';
 import { StartupTracker } from './providers/startup-tracker';
 import { RequestsProvider } from './providers/requests';
 import { OutgoingProvider } from './providers/outgoing';
@@ -55,6 +57,12 @@ export interface NodeUIOptions {
   env?: Record<string, string | undefined>;
   /** Whether secret masking applies to panel output. Default true. */
   maskSecrets?: boolean;
+  /**
+   * Extra detail recorded per request: query, headers (credentials always
+   * redacted) and, opt-in, textual bodies (or `NODEUI_CAPTURE_BODIES=true`).
+   * `false` records none of it.
+   */
+  captureRequestDetail?: boolean | RequestDetailOptions;
   /** Idle time after which background samplers stop. Default 60000. */
   inactivityTimeoutMs?: number;
   /** TTL for mutation confirmation nonces. Default 60000. */
@@ -221,6 +229,10 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     enabled: activation.active,
     activationReason: activation.reason,
     maskSecrets: options.maskSecrets ?? true,
+    requestDetail: resolveRequestDetail(
+      options.captureRequestDetail,
+      env.NODEUI_CAPTURE_BODIES === 'true',
+    ),
     inactivityTimeoutMs: positiveInt(
       options.inactivityTimeoutMs,
       env.NODEUI_INACTIVITY_TIMEOUT_MS ? Number(env.NODEUI_INACTIVITY_TIMEOUT_MS) : 60_000,
@@ -628,6 +640,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     const timestampMs = Date.now();
     const requestId = requestsProvider.reserveId();
     bindRequestId(req, requestId);
+    const collectDetail = captureRequestDetail(req, res, config.requestDetail, config.maskSecrets);
     res.on('finish', () => {
       const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
       requestsProvider.record(
@@ -639,6 +652,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
           timestampMs,
           ip: req.socket.remoteAddress ?? 'unknown',
           route: routePatternOf(req),
+          ...collectDetail(),
         },
         requestId,
       );
