@@ -82,7 +82,7 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 | [`@singhak/nodeui-hapi`](packages/hapi)       | `v0.4.0` | Plugin adapter for Hapi 21.                                                            |
 | [`@singhak/nodeui-hono`](packages/hono)       | `v0.4.0` | Middleware adapter for Hono on Node.js (`@hono/node-server`).                          |
 | [`@singhak/nodeui-http`](packages/http)       | `v0.4.0` | Plain `node:http` adapter, also for Next.js custom servers and Restify.                |
-| [`@singhak/nodeui-cli`](packages/cli)         | `v0.4.0` | `npx` command: attach to any Node app without code changes, multi-service dashboard.   |
+| [`@singhak/nodeui-cli`](packages/cli)         | `v0.4.0` | `npx` command: attach without code changes, multi-service dashboard, MCP server.       |
 | [`apps/ui`](apps/ui)                          | —        | React + Vite single-page console embedded into core static build.                      |
 | [`apps/demo-express`](apps/demo-express)      | —        | Sandbox Express verification server.                                                   |
 | [`apps/demo-nestjs`](apps/demo-nestjs)        | —        | Sandbox NestJS verification server.                                                    |
@@ -314,7 +314,21 @@ npx @singhak/nodeui-cli attach -- node server.js      # console on your app's ow
 npx @singhak/nodeui-cli dashboard api=http://127.0.0.1:3000 worker=http://127.0.0.1:3001
 ```
 
-`attach` preloads NodeUI into the process you start (it cannot attach to one that is already running). `dashboard` is a loopback page that shows health, error rate and p95 for several consoles and opens each through a proxy. See [`packages/cli`](packages/cli) for options and limits.
+`attach` preloads NodeUI into the process you start (it cannot attach to one that is already running). `dashboard` is a loopback page that shows health, error rate and p95 for several consoles and opens each through a proxy.
+
+### Let an AI agent read it (MCP)
+
+```json
+{
+  "mcpServers": {
+    "nodeui": { "command": "npx", "args": ["@singhak/nodeui-cli", "mcp", "http://127.0.0.1:3000"] }
+  }
+}
+```
+
+`nodeui mcp` is a read-only [MCP](https://modelcontextprotocol.io) server: an overview digest, grouped errors, requests joined with their queries/outgoing calls/logs, and more. It reads the console API, so data is already masked and no confirmation-gated action is reachable.
+
+See [`packages/cli`](packages/cli) for options and limits.
 
 ## 🗄️ Database queries
 

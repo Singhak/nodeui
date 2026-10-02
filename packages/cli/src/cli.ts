@@ -2,6 +2,7 @@
 /* eslint-disable no-console -- this is a CLI; stdout is its interface */
 import { attach, type AttachOptions } from './attach';
 import { startDashboard } from './dashboard';
+import { serveMcp } from './mcp';
 import { parseTarget, type ServiceTarget } from './targets';
 
 const HELP = `nodeui - attach the NodeUI developer console to any Node app
@@ -9,6 +10,7 @@ const HELP = `nodeui - attach the NodeUI developer console to any Node app
 Usage:
   nodeui attach [options] -- <command...>   run a command with the console attached
   nodeui dashboard [options] <name=url>...  one page for several running consoles
+  nodeui mcp <name=url>...                  MCP server (stdio) so AI agents can read a console
 
 attach options:
   --path <prefix>      console path (default /nodeui)
@@ -20,6 +22,9 @@ attach options:
 
 dashboard options:
   --port <n>           port to listen on (default 4000, loopback only)
+
+mcp: read-only tools over stdio; add it to an MCP client as
+  { "command": "npx", "args": ["@singhak/nodeui-cli", "mcp", "http://127.0.0.1:3000"] }
 
 Examples:
   npx @singhak/nodeui-cli attach -- node server.js
@@ -97,6 +102,14 @@ export async function main(argv: string[]): Promise<number> {
       process.once('SIGTERM', resolve);
     });
     await dashboard.close();
+    return 0;
+  }
+
+  if (command === 'mcp') {
+    const services: ServiceTarget[] = positional.map(parseTarget);
+    if (services.length === 0)
+      throw new Error('give at least one console URL, e.g. http://127.0.0.1:3000');
+    await serveMcp({ services }).done;
     return 0;
   }
 

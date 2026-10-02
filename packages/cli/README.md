@@ -1,6 +1,6 @@
 # @singhak/nodeui-cli
 
-Command line for NodeUI: attach the console to **any Node app without changing its code**, watch **several services from one page**, and (soon) expose the data to AI agents.
+Command line for NodeUI: attach the console to **any Node app without changing its code**, watch **several services from one page**, and expose the data to AI agents over MCP.
 
 ```bash
 npx @singhak/nodeui-cli attach -- node server.js
@@ -45,6 +45,30 @@ nodeui dashboard --port 4000 api=http://127.0.0.1:3000 billing=http://127.0.0.1:
 - A service entry is `name=url` or just `url`; the console path defaults to `/nodeui`; `?token=` is the service's access token and is sent as a bearer header by the proxy (never put into the page).
 - The dashboard is loopback-only, rejects foreign `Host` and `Origin` headers, and strips cookies/origin when proxying so each service's own checks still apply.
 - Each service keeps its own data; the dashboard stores nothing.
+
+## `mcp` (AI agents)
+
+A [Model Context Protocol](https://modelcontextprotocol.io) server over stdio, so an agent (Claude Code, Cursor, …) can read what your app is doing instead of you pasting logs:
+
+```json
+{
+  "mcpServers": {
+    "nodeui": { "command": "npx", "args": ["@singhak/nodeui-cli", "mcp", "http://127.0.0.1:3000"] }
+  }
+}
+```
+
+Give it one console URL, or several as `name=url` (tools then take a `service` argument). Tools, all **read-only**:
+
+| Tool                                                                | Returns                                                                                                                                |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `nodeui_overview`                                                   | start here: prioritised digest of health, traffic, grouped errors, failing/slow requests, slow and N+1 queries, failing outgoing calls |
+| `nodeui_errors`                                                     | grouped errors with stacks and the last linked request                                                                                 |
+| `nodeui_requests`                                                   | recent requests; filter by `minStatus` / `minDurationMs`                                                                               |
+| `nodeui_request`                                                    | one request joined with its outgoing calls, queries and log lines                                                                      |
+| `nodeui_queries`, `nodeui_outgoing`, `nodeui_logs`, `nodeui_routes` | the matching panels, trimmed                                                                                                           |
+
+It reads the console's REST API, so everything is already masked, and it never calls heap snapshots or any confirmation-gated action. An agent sees only what the console would show you, and only on your machine unless you point it elsewhere.
 
 ## Programmatic use
 
