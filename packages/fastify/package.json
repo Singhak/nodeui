@@ -1,7 +1,7 @@
 {
-  "name": "@singhak/nodeui-express",
+  "name": "@singhak/nodeui-fastify",
   "version": "0.3.0",
-  "description": "Express middleware adapter for the NodeUI developer console.",
+  "description": "Fastify plugin adapter for the NodeUI developer console.",
   "license": "Apache-2.0",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
@@ -19,8 +19,8 @@
   ],
   "sideEffects": false,
   "keywords": [
-    "express",
-    "middleware",
+    "fastify",
+    "plugin",
     "console",
     "developer-tools",
     "observability",
@@ -50,14 +50,11 @@
     "@singhak/nodeui-core": "^0.3.0"
   },
   "peerDependencies": {
-    "express": "^4.0.0 || ^5.0.0"
+    "fastify": "^4.0.0 || ^5.0.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.0",
     "@types/node": "^22.19.0",
-    "@types/supertest": "^6.0.2",
-    "express": "^5.2.1",
-    "supertest": "^7.1.0",
+    "fastify": "^5.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

@@ -11,8 +11,8 @@
     "paths": {
       "@singhak/nodeui-nestjs": ["packages/nestjs/src/index.ts"],
       "@singhak/nodeui-core": ["packages/core/src/index.ts"],
-      "@nodeui/nestjs": ["packages/nestjs/src/index.ts"],
-      "@nodeui/core": ["packages/core/src/index.ts"]
+      "@singhak/nodeui-nestjs": ["packages/nestjs/src/index.ts"],
+      "@singhak/nodeui-core": ["packages/core/src/index.ts"]
     }
   },
   "include": ["src"]

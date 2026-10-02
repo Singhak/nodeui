@@ -9,6 +9,7 @@ const dryRun = process.argv.includes('--dry-run');
 const PACKAGES = [
   ['@singhak/nodeui-core', 'core'],
   ['@singhak/nodeui-express', 'express'],
+  ['@singhak/nodeui-fastify', 'fastify'],
   ['@singhak/nodeui-nestjs', 'nestjs'],
 ];
 
@@ -31,5 +32,7 @@ for (const [name] of PACKAGES) {
   run(['publish', '--workspace', name, '--access', 'public', '--tag', 'latest']);
 }
 
-console.log('\nPublished: @singhak/nodeui-core, @singhak/nodeui-express, @singhak/nodeui-nestjs.');
+console.log(
+  '\nPublished: @singhak/nodeui-core, @singhak/nodeui-express, @singhak/nodeui-fastify, @singhak/nodeui-nestjs.',
+);
 console.log('Remember to update the root CHANGELOG.md and tag the release.');
