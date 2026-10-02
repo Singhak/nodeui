@@ -7,6 +7,16 @@ interface RequestContext {
 
 const storage = new AsyncLocalStorage<RequestContext>();
 const ids = new WeakMap<object, number>();
+const suppression = new AsyncLocalStorage<true>();
+
+/** Runs `fn` so NodeUI's own outgoing HTTP calls (e.g. OTLP export) are not captured. */
+export function runSuppressed<T>(fn: () => T): T {
+  return suppression.run(true, fn);
+}
+
+export function isSuppressed(): boolean {
+  return suppression.getStore() === true;
+}
 
 /** Id of the app request the current async call chain belongs to, if any. */
 export function currentRequestId(): number | undefined {

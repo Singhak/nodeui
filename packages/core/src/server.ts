@@ -16,7 +16,13 @@ import type {
   StartupData,
   RequestDetailOptions,
 } from './types';
-import { isLoopbackAddress, maskSecrets, resolveActivation, SECRET_KEY_PATTERN } from './safety';
+import {
+  isLoopbackAddress,
+  isLoopbackHostname,
+  maskSecrets,
+  resolveActivation,
+  SECRET_KEY_PATTERN,
+} from './safety';
 import { AUTH_COOKIE, createGuard } from './guard';
 import { ConfirmationStore } from './confirmations';
 import { DEFAULT_LOG_SIZE } from './constants';
@@ -30,6 +36,7 @@ import { HealthProvider } from './providers/health';
 import { HeapSnapshotProvider } from './providers/heap-snapshot';
 import { bindRequestId, currentRequestId, runWithRequestId } from './context';
 import { captureRequestDetail, resolveRequestDetail } from './request-detail';
+import { OtlpExporter, type OtlpOptions } from './otlp';
 import { DEFAULT_PERSIST_MAX_BYTES, Persistence, type PersistedRecord } from './persistence';
 import { StartupTracker } from './providers/startup-tracker';
 import { RequestsProvider } from './providers/requests';
@@ -74,6 +81,13 @@ export interface NodeUIOptions {
    * version control.
    */
   persist?: string | { file: string; maxBytes?: number };
+  /**
+   * Export requests, outgoing calls and queries as OTLP/HTTP JSON spans to a
+   * collector (or `NODEUI_OTLP_ENDPOINT`). Off by default. Enabling it keeps
+   * outgoing and query instrumentation running and sends (masked) telemetry to
+   * the given endpoint, so point it at a local collector.
+   */
+  otlp?: string | OtlpOptions;
   /** Idle time after which background samplers stop. Default 60000. */
   inactivityTimeoutMs?: number;
   /** TTL for mutation confirmation nonces. Default 60000. */
@@ -211,6 +225,14 @@ function listFrom(value: string[] | undefined, raw: string | undefined): string[
     .filter(Boolean);
 }
 
+function otlpHostname(endpoint: string): string {
+  try {
+    return new URL(endpoint).hostname.replace(/^\[|\]$/g, '');
+  } catch {
+    throw new Error(`nodeui otlp endpoint "${endpoint}" is not a valid URL`);
+  }
+}
+
 function pathnameOf(req: IncomingMessage): string {
   const raw = (req as IncomingMessage & { originalUrl?: string }).originalUrl ?? req.url ?? '/';
   try {
@@ -278,6 +300,11 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       DEFAULT_PERSIST_MAX_BYTES,
       'persist.maxBytes',
     ),
+    otlp:
+      typeof options.otlp === 'string'
+        ? { endpoint: options.otlp }
+        : (options.otlp ??
+          (env.NODEUI_OTLP_ENDPOINT ? { endpoint: env.NODEUI_OTLP_ENDPOINT } : null)),
     requestDetail: resolveRequestDetail(
       options.captureRequestDetail,
       env.NODEUI_CAPTURE_BODIES === 'true',
@@ -379,29 +406,53 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   registry.register(errorsProvider);
   if (config.enabled) errorsProvider.attach();
 
-  // Optional journal: restore what a previous run recorded, then keep appending.
+  // Optional sinks fed by every recorded item: a journal that survives restarts
+  // and an OTLP exporter. Their data comes from the lazy outgoing/query
+  // instrumentation, so either sink keeps those running ("pinned").
   const persistence =
     config.enabled && config.persistFile
       ? new Persistence(config.persistFile, config.persistMaxBytes)
       : null;
+  const exporter = config.enabled && config.otlp ? new OtlpExporter(config.otlp) : null;
+  const pinned = new Set<PanelId>();
+  const otlpHost = config.otlp ? otlpHostname(config.otlp.endpoint) : null;
+  if (exporter && config.otlp && !isLoopbackHostname(otlpHost)) {
+    console.warn(
+      `[nodeui] exporting telemetry to non-local OTLP endpoint ${config.otlp.endpoint}; ` +
+        'requests, queries and outgoing URLs leave this machine (masked).',
+    );
+  }
   if (persistence) {
-    const byKind = (kind: PersistedRecord['kind']): unknown[] =>
+    const byKind = (kind: PersistedRecord['kind']): never[] =>
       persistence
         .load()
         .filter((r) => r.kind === kind)
-        .map((r) => r.data);
-    requestsProvider.restore(byKind('request') as never);
-    outgoingProvider.restore(byKind('outgoing') as never);
-    queriesProvider.restore(byKind('query') as never);
-    errorsProvider.restore(byKind('error') as never);
-    const save =
-      (kind: PersistedRecord['kind']) =>
-      (data: unknown): void =>
-        persistence.append(kind, config.maskSecrets ? maskSecrets(data) : data);
-    requestsProvider.onRecord = save('request');
-    outgoingProvider.onRecord = save('outgoing');
-    queriesProvider.onRecord = save('query');
-    errorsProvider.onRecord = save('error');
+        .map((r) => r.data) as never[];
+    requestsProvider.restore(byKind('request'));
+    outgoingProvider.restore(byKind('outgoing'));
+    queriesProvider.restore(byKind('query'));
+    errorsProvider.restore(byKind('error'));
+  }
+  if (persistence || exporter) {
+    const save = (kind: PersistedRecord['kind'], data: unknown): void =>
+      persistence?.append(kind, config.maskSecrets ? maskSecrets(data) : data);
+    requestsProvider.onRecord = (e) => {
+      save('request', e);
+      exporter?.request(e);
+    };
+    outgoingProvider.onRecord = (e) => {
+      save('outgoing', e);
+      exporter?.outgoing(e);
+    };
+    queriesProvider.onRecord = (e) => {
+      save('query', e);
+      exporter?.query(e);
+    };
+    errorsProvider.onRecord = (e) => save('error', e);
+    for (const provider of [outgoingProvider, queriesProvider]) {
+      provider.start();
+      pinned.add(provider.id);
+    }
   }
 
   const pluginMeta: Array<{ id: PanelId; title: string }> = [];
@@ -428,7 +479,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
 
   function stopAll(): void {
     for (const id of activeProviders) {
-      registry.get(id)?.stop?.(ctx);
+      if (!pinned.has(id)) registry.get(id)?.stop?.(ctx);
     }
     activeProviders.clear();
     if (inactivityTimer) {
@@ -823,6 +874,9 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     shutdown(): void {
       errorsProvider.detach();
       persistence?.close();
+      exporter?.close();
+      for (const id of pinned) registry.get(id)?.stop?.(ctx);
+      pinned.clear();
       stopAll();
     },
   };

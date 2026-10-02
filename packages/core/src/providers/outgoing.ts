@@ -2,7 +2,7 @@ import diagnosticsChannel from 'node:diagnostics_channel';
 import http from 'node:http';
 import https from 'node:https';
 import { syncBuiltinESMExports } from 'node:module';
-import { currentRequestId } from '../context';
+import { currentRequestId, isSuppressed } from '../context';
 import { RingBuffer } from '../ring-buffer';
 import type { NodeUIProvider, OutgoingData, OutgoingRequestEntry } from '../types';
 
@@ -66,7 +66,7 @@ function wrapModule(mod: typeof http | typeof https, protocol: string): void {
     originals.set(key, original);
     const wrapped = function (this: unknown, ...args: unknown[]): unknown {
       const req = original.apply(this, args) as http.ClientRequest;
-      const target = recorders.size > 0 ? describeTarget(protocol, args) : null;
+      const target = recorders.size > 0 && !isSuppressed() ? describeTarget(protocol, args) : null;
       if (target && req && typeof req.once === 'function') {
         const started = process.hrtime.bigint();
         const timestampMs = Date.now();
@@ -123,7 +123,7 @@ function subscribeUndici(): () => void {
   });
   const onCreate = (message: unknown): void => {
     const request = (message as { request?: object }).request;
-    if (request) {
+    if (request && !isSuppressed()) {
       started.set(request, {
         at: process.hrtime.bigint(),
         ts: Date.now(),

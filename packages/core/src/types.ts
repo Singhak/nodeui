@@ -6,6 +6,8 @@
  * endpoint returns an {@link ApiEnvelope} which is the same shape.
  */
 
+import type { OtlpOptions } from './otlp';
+
 export type BuiltInPanelId =
   | 'health'
   | 'memory'
@@ -54,6 +56,8 @@ export interface NodeUIConfig {
   persistFile: string | null;
   /** Rotation threshold for the journal. */
   persistMaxBytes: number;
+  /** OTLP/HTTP trace export settings, or null when disabled. */
+  otlp: OtlpOptions | null;
   /** Idle time after which background samplers stop. Default 60000. */
   inactivityTimeoutMs: number;
   /** TTL for mutation confirmation nonces. Default 60000. */
