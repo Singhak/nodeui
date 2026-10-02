@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `capture` option (`NODEUI_CAPTURE`): `'always'` (new default) records outgoing calls, queries and logs from startup so activity before you open the console is not lost; `'lazy'` keeps the previous open-a-panel-first behaviour.
 - IPv6 support in `allowedRemoteAddresses`: IPv6 CIDRs (`fd00::/8`) and value-based comparison of IPv6 literals. Entries that are not a valid IP or CIDR are reported at startup instead of silently never matching.
 - `npm run bench:hooks` measures the cost of the always-on capture hooks.
+- Compatibility test against the real `@opentelemetry/instrumentation-http` (each scenario in its own process).
 
 ### Changed
 

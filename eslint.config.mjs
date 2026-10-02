@@ -31,6 +31,17 @@ export default tseslint.config(
     },
   },
   {
+    // CommonJS fixtures run in a child process (OpenTelemetry hooks require()).
+    files: ['**/test/fixtures/**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { ...globals.node },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
     files: ['apps/demo-express/src/**', 'apps/demo-nestjs/src/**'],
     rules: {
       'no-console': 'off',

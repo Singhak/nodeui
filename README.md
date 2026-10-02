@@ -382,7 +382,8 @@ By default NodeUI records outgoing HTTP calls, database queries and `console.*` 
 - It only restores a function it still owns. If another tool wrapped on top of NodeUI, stopping NodeUI leaves that wrapper in place, and its own retired wrapper becomes a passthrough that no longer records (`packages/core/test/compat.test.ts`).
 - Wrappers call the previous function, so every layer still sees the call.
 - If a call is recorded twice or goes missing in another tool, set `capture: 'lazy'` or `NODEUI_ENABLED=false` to rule NodeUI out, and open an issue.
-- This is tested against a stand-in wrapper installed on top of NodeUI, not yet against the real OpenTelemetry, Sentry or Datadog packages.
+- Tested against the real `@opentelemetry/instrumentation-http` in a separate process (`packages/core/test/otel-compat.test.ts`): both see every call in either install order, stopping NodeUI leaves OpenTelemetry tracing, disabling OpenTelemetry leaves NodeUI recording, and restarting NodeUI neither double-records nor drops OpenTelemetry spans.
+- Not yet tested against Sentry or Datadog agents, which also patch `http`; the same rules apply, but treat that as unverified.
 
 ---
 
