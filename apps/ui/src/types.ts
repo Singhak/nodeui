@@ -99,6 +99,7 @@ export interface RequestEntry {
 }
 
 export interface RequestsData {
+  summary?: RequestsSummary;
   total: number;
   entries: RequestEntry[];
 }
@@ -177,4 +178,26 @@ export interface OutgoingData {
   total: number;
   failed: number;
   entries: OutgoingRequestEntry[];
+}
+
+export interface RouteStat {
+  method: string;
+  path: string;
+  count: number;
+  avgMs: number;
+  p95Ms: number;
+  errors: number;
+}
+
+export interface RequestsSummary {
+  count: number;
+  errors: number;
+  /** 0..1, 5xx only. */
+  errorRate: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  p99Ms: number;
+  byStatus: { '2xx': number; '3xx': number; '4xx': number; '5xx': number };
+  routes: RouteStat[];
 }

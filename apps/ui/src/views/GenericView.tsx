@@ -1,8 +1,15 @@
 import type { ReactNode } from 'react';
-import { getPanel } from '../api';
-import { useLivePanel } from '../hooks';
+import {
+  Card,
+  EmptyState,
+  ErrorState,
+  ExportButtons,
+  Skeleton,
+  ViewHeader,
+} from '../components/common';
+import { DataTable, type Column } from '../components/DataTable';
+import { usePanel } from '../telemetry';
 import type { PanelId } from '../types';
-import { Panel, PanelError, PanelLoading } from './Panel';
 
 type Obj = Record<string, unknown>;
 
@@ -35,36 +42,33 @@ function renderValue(value: unknown): ReactNode {
 export function GenericData({ data }: { data: unknown }) {
   if (isFlatObjectArray(data)) {
     const headers = [...new Set(data.flatMap((row) => Object.keys(row)))];
+    const columns: Column<Obj>[] = headers.map((h) => ({
+      key: h,
+      label: h,
+      className: 'mono',
+      render: (row) => cell(row[h]),
+      sortValue: (row) => {
+        const v = row[h];
+        return typeof v === 'number' ? v : cell(v);
+      },
+    }));
     return (
-      <table className="table">
-        <thead>
-          <tr>
-            {headers.map((h) => (
-              <th key={h}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, i) => (
-            <tr key={i}>
-              {headers.map((h) => (
-                <td key={h} className="mono">
-                  {cell(row[h])}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        caption="Plugin data"
+        columns={columns}
+        rows={data}
+        rowKey={(r) => data.indexOf(r)}
+        maxHeight="calc(100vh - 260px)"
+      />
     );
   }
   if (Array.isArray(data)) {
-    if (data.length === 0) return <p className="muted">No data.</p>;
+    if (data.length === 0) return <EmptyState title="No data" />;
     return <pre className="generic-pre">{JSON.stringify(data, null, 2)}</pre>;
   }
   if (isPlainObject(data)) {
     const keys = Object.keys(data);
-    if (keys.length === 0) return <p className="muted">No data.</p>;
+    if (keys.length === 0) return <EmptyState title="No data" />;
     return (
       <dl className="kv">
         {keys.map((key) => (
@@ -79,7 +83,7 @@ export function GenericData({ data }: { data: unknown }) {
   return <p className="mono">{cell(data)}</p>;
 }
 
-export function GenericPanel({
+export function GenericView({
   id,
   title,
   intervalMs,
@@ -88,26 +92,29 @@ export function GenericPanel({
   title: string;
   intervalMs: number;
 }) {
-  const { data, error } = useLivePanel<unknown>(
-    id,
-    () => getPanel<unknown>(`/${encodeURIComponent(id)}`),
-    intervalMs,
-  );
-
+  const { data, error, refetch } = usePanel<unknown>(id, `/${encodeURIComponent(id)}`, intervalMs);
   return (
-    <Panel
-      title={title}
-      exportName={`nodeui-${id}`}
-      exportJson={data ?? undefined}
-      exportCsv={isFlatObjectArray(data) ? data : undefined}
-    >
-      {error ? (
-        <PanelError message={error} />
-      ) : data === null ? (
-        <PanelLoading />
-      ) : (
-        <GenericData data={data} />
-      )}
-    </Panel>
+    <>
+      <ViewHeader
+        title={title}
+        description="Custom panel registered by a plugin."
+        actions={
+          <ExportButtons
+            name={`nodeui-${id}`}
+            json={data ?? undefined}
+            csv={isFlatObjectArray(data) ? data : undefined}
+          />
+        }
+      />
+      <Card>
+        {error && data === null ? (
+          <ErrorState message={error} onRetry={refetch} />
+        ) : data === null ? (
+          <Skeleton lines={4} />
+        ) : (
+          <GenericData data={data} />
+        )}
+      </Card>
+    </>
   );
 }
