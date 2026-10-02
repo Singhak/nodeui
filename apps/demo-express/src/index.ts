@@ -185,9 +185,7 @@ app.listen(port, host, () => {
         headers: post
           ? { 'content-type': 'application/json', authorization: 'Bearer demo-secret' }
           : undefined,
-        body: post
-          ? JSON.stringify({ customer: 'Ada', card: '4111-1111-1111-1111', password: 'hunter2' })
-          : undefined,
+        body: post ? JSON.stringify({ customer: 'Ada', password: 'hunter2' }) : undefined,
       }).catch(() => undefined);
       if (path === '/slow') console.warn('[demo-express] slow endpoint hit');
       if (path === '/boom') console.error('[demo-express] token=abc123 failed for /boom');
