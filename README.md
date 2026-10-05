@@ -9,6 +9,7 @@ _NodeUI is a runtime developer console for your Node.js app, not a UI component 
 <br/>
 
 [![npm version](https://img.shields.io/npm/v/@singhak/nodeui-express?color=6366f1&label=version&style=flat-square)](https://www.npmjs.com/package/@singhak/nodeui-express)
+[![npm downloads](https://img.shields.io/npm/dm/@singhak/nodeui-core?color=cb3837&label=downloads&style=flat-square)](https://www.npmjs.com/package/@singhak/nodeui-core)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D%2018.0.0-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -17,6 +18,8 @@ _NodeUI is a runtime developer console for your Node.js app, not a UI component 
 
 <br/>
 
+[**npm**](https://www.npmjs.com/org/singhak) •
+[**Docs**](https://singhak.github.io/nodeui/) •
 [**How to use**](#-how-to-use-it-in-your-app) •
 [**Key Features**](#-key-features) •
 [**Framework Setup**](#-framework-integrations) •
@@ -72,20 +75,20 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 
 ## 📦 Packages in Monorepo
 
-| Package                                       | Version  | Description                                                                            |
-| :-------------------------------------------- | :------- | :------------------------------------------------------------------------------------- |
-| [`@singhak/nodeui-core`](packages/core)       | `v0.5.0` | Framework-neutral observability engine, REST/SSE provider registry, static SPA server. |
-| [`@singhak/nodeui-express`](packages/express) | `v0.5.0` | Middleware adapter for Express applications.                                           |
-| [`@singhak/nodeui-fastify`](packages/fastify) | `v0.5.0` | Plugin adapter for Fastify 4 / 5 applications.                                         |
-| [`@singhak/nodeui-nestjs`](packages/nestjs)   | `v0.5.0` | Dynamic module adapter for NestJS applications (Express or Fastify platform).          |
-| [`@singhak/nodeui-koa`](packages/koa)         | `v0.5.0` | Middleware adapter for Koa 2 / 3.                                                      |
-| [`@singhak/nodeui-hapi`](packages/hapi)       | `v0.5.0` | Plugin adapter for Hapi 21.                                                            |
-| [`@singhak/nodeui-hono`](packages/hono)       | `v0.5.0` | Middleware adapter for Hono on Node.js (`@hono/node-server`).                          |
-| [`@singhak/nodeui-http`](packages/http)       | `v0.5.0` | Plain `node:http` adapter, also for Next.js custom servers and Restify.                |
-| [`@singhak/nodeui-cli`](packages/cli)         | `v0.5.0` | `npx` command: attach without code changes, multi-service dashboard, MCP server.       |
-| [`apps/ui`](apps/ui)                          | —        | React + Vite single-page console embedded into core static build.                      |
-| [`apps/demo-express`](apps/demo-express)      | —        | Sandbox Express verification server.                                                   |
-| [`apps/demo-nestjs`](apps/demo-nestjs)        | —        | Sandbox NestJS verification server.                                                    |
+| Package                                                                                                      | Version                                                                                                                                        | Description                                                                            |
+| :----------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
+| [`@singhak/nodeui-core`](packages/core) · [npm](https://www.npmjs.com/package/@singhak/nodeui-core)          | [![npm](https://img.shields.io/npm/v/@singhak/nodeui-core?style=flat-square&label=)](https://www.npmjs.com/package/@singhak/nodeui-core)       | Framework-neutral observability engine, REST/SSE provider registry, static SPA server. |
+| [`@singhak/nodeui-express`](packages/express) · [npm](https://www.npmjs.com/package/@singhak/nodeui-express) | [![npm](https://img.shields.io/npm/v/@singhak/nodeui-express?style=flat-square&label=)](https://www.npmjs.com/package/@singhak/nodeui-express) | Middleware adapter for Express applications.                                           |
+| [`@singhak/nodeui-fastify`](packages/fastify) · [npm](https://www.npmjs.com/package/@singhak/nodeui-fastify) | [![npm](https://img.shields.io/npm/v/@singhak/nodeui-fastify?style=flat-square&label=)](https://www.npmjs.com/package/@singhak/nodeui-fastify) | Plugin adapter for Fastify 4 / 5 applications.                                         |
+| [`@singhak/nodeui-nestjs`](packages/nestjs) · [npm](https://www.npmjs.com/package/@singhak/nodeui-nestjs)    | [![npm](https://img.shields.io/npm/v/@singhak/nodeui-nestjs?style=flat-square&label=)](https://www.npmjs.com/package/@singhak/nodeui-nestjs)   | Dynamic module adapter for NestJS applications (Express or Fastify platform).          |
+| [`@singhak/nodeui-koa`](packages/koa) · [npm](https://www.npmjs.com/package/@singhak/nodeui-koa)             | [![npm](https://img.shields.io/npm/v/@singhak/nodeui-koa?style=flat-square&label=)](https://www.npmjs.com/package/@singhak/nodeui-koa)         | Middleware adapter for Koa 2 / 3.                                                      |
+| [`@singhak/nodeui-hapi`](packages/hapi) · [npm](https://www.npmjs.com/package/@singhak/nodeui-hapi)          | [![npm](https://img.shields.io/npm/v/@singhak/nodeui-hapi?style=flat-square&label=)](https://www.npmjs.com/package/@singhak/nodeui-hapi)       | Plugin adapter for Hapi 21.                                                            |
+| [`@singhak/nodeui-hono`](packages/hono) · [npm](https://www.npmjs.com/package/@singhak/nodeui-hono)          | [![npm](https://img.shields.io/npm/v/@singhak/nodeui-hono?style=flat-square&label=)](https://www.npmjs.com/package/@singhak/nodeui-hono)       | Middleware adapter for Hono on Node.js (`@hono/node-server`).                          |
+| [`@singhak/nodeui-http`](packages/http) · [npm](https://www.npmjs.com/package/@singhak/nodeui-http)          | [![npm](https://img.shields.io/npm/v/@singhak/nodeui-http?style=flat-square&label=)](https://www.npmjs.com/package/@singhak/nodeui-http)       | Plain `node:http` adapter, also for Next.js custom servers and Restify.                |
+| [`@singhak/nodeui-cli`](packages/cli) · [npm](https://www.npmjs.com/package/@singhak/nodeui-cli)             | [![npm](https://img.shields.io/npm/v/@singhak/nodeui-cli?style=flat-square&label=)](https://www.npmjs.com/package/@singhak/nodeui-cli)         | `npx` command: attach without code changes, multi-service dashboard, MCP server.       |
+| [`apps/ui`](apps/ui)                                                                                         | —                                                                                                                                              | React + Vite single-page console embedded into core static build.                      |
+| [`apps/demo-express`](apps/demo-express)                                                                     | —                                                                                                                                              | Sandbox Express verification server.                                                   |
+| [`apps/demo-nestjs`](apps/demo-nestjs)                                                                       | —                                                                                                                                              | Sandbox NestJS verification server.                                                    |
 
 ### Why the UI is embedded, not a separate package
 
@@ -131,7 +134,7 @@ Notice that secrets are masked everywhere: `DATABASE_URL`, `JWT_SECRET` and `STR
 
 ## 🧭 How to Use It in Your App
 
-**1. Install the adapter for your framework** (it pulls in `@singhak/nodeui-core`):
+**1. Install the adapter for your framework** from npm (it pulls in [`@singhak/nodeui-core`](https://www.npmjs.com/package/@singhak/nodeui-core)). Pick the one for your framework: [express](https://www.npmjs.com/package/@singhak/nodeui-express), [fastify](https://www.npmjs.com/package/@singhak/nodeui-fastify), [nestjs](https://www.npmjs.com/package/@singhak/nodeui-nestjs), [koa](https://www.npmjs.com/package/@singhak/nodeui-koa), [hapi](https://www.npmjs.com/package/@singhak/nodeui-hapi), [hono](https://www.npmjs.com/package/@singhak/nodeui-hono), [http](https://www.npmjs.com/package/@singhak/nodeui-http):
 
 ```bash
 npm install --save-dev @singhak/nodeui-express   # or -fastify / -nestjs / -koa / -hapi / -hono / -http
@@ -320,6 +323,7 @@ See each package's README for details. NestJS also works on the Fastify platform
 ## 🔌 Attach without code changes, and many services at once
 
 ```bash
+# CLI: https://www.npmjs.com/package/@singhak/nodeui-cli
 npx @singhak/nodeui-cli attach -- node server.js      # console on your app's own port
 npx @singhak/nodeui-cli dashboard api=http://127.0.0.1:3000 worker=http://127.0.0.1:3001
 ```
@@ -338,7 +342,7 @@ npx @singhak/nodeui-cli dashboard api=http://127.0.0.1:3000 worker=http://127.0.
 
 `nodeui mcp` is a read-only [MCP](https://modelcontextprotocol.io) server: an overview digest, grouped errors, requests joined with their queries/outgoing calls/logs, and more. It reads the console API, so data is already masked and no confirmation-gated action is reachable.
 
-See [`packages/cli`](packages/cli) for options and limits.
+See [`packages/cli`](packages/cli) ([npm](https://www.npmjs.com/package/@singhak/nodeui-cli)) for options and limits.
 
 ## 🗄️ Database queries
 
@@ -689,6 +693,8 @@ npm run bench:hooks      # Cost of the always-on capture hooks
 npm run demo:express     # Launch Express sandbox app
 npm run demo:nestjs      # Launch NestJS sandbox app
 ```
+
+Full documentation: <https://singhak.github.io/nodeui/>. Packages: <https://www.npmjs.com/org/singhak>.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full contribution conventions and [SECURITY.md](SECURITY.md) for our security reporting policy.
 
