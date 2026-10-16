@@ -1,4 +1,11 @@
-import type { ConfigData, ConfirmIssued, Envelope, HeapSnapshotData } from './types';
+import type {
+  BenchRun,
+  ConfigData,
+  ConfirmIssued,
+  Envelope,
+  HeapSnapshotData,
+  RunsData,
+} from './types';
 
 /**
  * API base derived from the document location. The console is served at
@@ -78,4 +85,32 @@ export function takeHeapSnapshot(nonce: string): Promise<HeapSnapshotData> {
     method: 'POST',
     headers: { 'x-nodeui-confirm': nonce },
   });
+}
+
+function postJson<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function getRuns(): Promise<RunsData> {
+  return request<RunsData>('/runs');
+}
+
+export function startRun(name: string): Promise<{ id: number; name: string; startMs: number }> {
+  return postJson('/runs/start', { name });
+}
+
+export function stopRun(): Promise<BenchRun> {
+  return postJson('/runs/stop', {});
+}
+
+export function saveRun(name: string, fromMs: number, toMs: number): Promise<BenchRun> {
+  return postJson('/runs/save', { name, fromMs, toMs });
+}
+
+export function deleteRun(id: number): Promise<{ deleted: boolean }> {
+  return postJson('/runs/delete', { id });
 }

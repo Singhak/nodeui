@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Metrics history and a **Metrics** view: throughput, latency percentiles, concurrency, network, event-loop delay, memory, CPU and GC for the last hour at 1s and eight hours at 10s, with a range picker, drag-to-zoom and a shared crosshair (`GET /api/timeseries`).
+- **Load tests** view: record named runs (or save a zoomed range retroactively), copy a text report, and compare two runs with better/worse deltas and overlaid charts (`/api/runs`).
+- `GET /api/prometheus`: Prometheus text exposition, so a local Grafana can scrape the console.
+- Requests: `?limit=&offset=` paging, a "Full buffer" toggle in the UI, and a lifetime counter that is unaffected by ring-buffer eviction.
 - Documentation site on GitHub Pages (<https://singhak.github.io/nodeui/>), built with VitePress from `docs/`.
 
 ## [0.5.0] - 2026-10-02

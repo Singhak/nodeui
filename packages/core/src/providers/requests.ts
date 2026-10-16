@@ -1,5 +1,6 @@
 import type {
   NodeUIProvider,
+  ProviderContext,
   RequestEntry,
   RequestsData,
   RequestsSummary,
@@ -8,6 +9,12 @@ import type {
 import { RingBuffer } from '../ring-buffer';
 
 const RESPONSE_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 5000;
+
+function intParam(raw: string | undefined, fallback: number, min: number, max: number): number {
+  const n = raw === undefined ? NaN : Math.trunc(Number(raw));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+}
 const MAX_ROUTE_STATS = 8;
 
 function percentile(sorted: number[], p: number): number {
@@ -75,6 +82,8 @@ export class RequestsProvider implements NodeUIProvider<RequestsData> {
 
   private buffer: RingBuffer<RequestEntry>;
   private nextId = 1;
+  private seen = 0;
+  private seenErrors = 0;
   /** Called with every newly recorded entry (persistence hook). */
   onRecord?: (entry: RequestEntry) => void;
 
@@ -92,6 +101,8 @@ export class RequestsProvider implements NodeUIProvider<RequestsData> {
   record(entry: Omit<RequestEntry, 'id'>, id: number = this.reserveId()): void {
     const full = { id, ...entry };
     this.buffer.push(full);
+    this.seen += 1;
+    if (entry.status >= 500) this.seenErrors += 1;
     this.onRecord?.(full);
   }
 
@@ -107,9 +118,28 @@ export class RequestsProvider implements NodeUIProvider<RequestsData> {
     return this.buffer.length;
   }
 
-  get(): { ok: true; data: RequestsData } {
-    const entries = this.buffer.slice(Math.max(0, this.buffer.length - RESPONSE_PAGE_SIZE));
+  /**
+   * Returns one page of the buffer. `?limit=` (default 100, max 5000) sets the
+   * page size and `?offset=` skips that many of the newest entries, so the UI
+   * can page back through everything the buffer still holds.
+   */
+  get(ctx?: ProviderContext): { ok: true; data: RequestsData } {
+    const limit = intParam(ctx?.query?.limit, RESPONSE_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+    const offset = intParam(ctx?.query?.offset, 0, 0, this.buffer.length);
+    const end = Math.max(0, this.buffer.length - offset);
+    const start = Math.max(0, end - limit);
+    const entries = this.buffer.slice(start, end - start);
     const summary = summarizeRequests(this.buffer.toArray());
-    return { ok: true, data: { total: this.buffer.length, entries, summary } };
+    return {
+      ok: true,
+      data: {
+        total: this.buffer.length,
+        capacity: this.buffer.capacity,
+        offset,
+        entries,
+        summary,
+        lifetime: { requests: this.seen, errors: this.seenErrors },
+      },
+    };
   }
 }

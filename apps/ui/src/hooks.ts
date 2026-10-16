@@ -19,6 +19,7 @@ export function usePolledPanel<T>(
   path: string,
   fetchFn: () => Promise<T>,
   intervalMs: number,
+  enabled = true,
 ): PollState<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export function usePolledPanel<T>(
   fetchRef.current = fetchFn;
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let delay = intervalMs;
@@ -57,7 +59,7 @@ export function usePolledPanel<T>(
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [intervalMs, nonce]);
+  }, [intervalMs, nonce, enabled]);
 
   const refetch = (): void => setNonce((n) => n + 1);
   return { data, error, loading, refetch };

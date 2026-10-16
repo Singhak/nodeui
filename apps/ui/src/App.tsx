@@ -10,9 +10,11 @@ import { GenericView } from './views/GenericView';
 import { ErrorsView } from './views/ErrorsView';
 import { EnvView, LogsView, RoutesView } from './views/ListViews';
 import { OutgoingView } from './views/OutgoingView';
+import { MetricsView } from './views/MetricsView';
 import { Overview } from './views/Overview';
 import { QueriesView } from './views/QueriesView';
 import { RequestsView } from './views/RequestsView';
+import { RunsView } from './views/RunsView';
 import { RuntimeView } from './views/RuntimeView';
 
 interface NavItem {
@@ -39,6 +41,7 @@ const BUILT_IN_IDS = [
   'outgoing',
   'errors',
   'queries',
+  'timeseries',
 ];
 
 export function buildNav(config: ConfigData | null): NavItem[] {
@@ -47,6 +50,22 @@ export function buildNav(config: ConfigData | null): NavItem[] {
   const items: NavItem[] = [
     { id: 'overview', title: 'Overview', icon: '◩', group: 'main', segments: ['overview'] },
   ];
+  if (has('timeseries')) {
+    items.push({
+      id: 'metrics',
+      title: 'Metrics',
+      icon: '▤',
+      group: 'main',
+      segments: ['metrics'],
+    });
+    items.push({
+      id: 'runs',
+      title: 'Load tests',
+      icon: '⏺',
+      group: 'main',
+      segments: ['runs'],
+    });
+  }
   if (has('requests'))
     items.push({
       id: 'requests',
@@ -243,6 +262,8 @@ function Shell({ config }: { config: ConfigData }) {
     );
   } else if (view === 'overview') body = <Overview />;
   else if (view === 'requests') body = <RequestsView />;
+  else if (view === 'metrics') body = <MetricsView intervalMs={interval} />;
+  else if (view === 'runs') body = <RunsView intervalMs={interval} />;
   else if (view === 'outgoing') body = <OutgoingView intervalMs={interval} />;
   else if (view === 'queries') body = <QueriesView intervalMs={interval} />;
   else if (view === 'errors') body = <ErrorsView intervalMs={interval} />;

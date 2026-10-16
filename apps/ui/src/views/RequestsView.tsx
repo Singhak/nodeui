@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getPanel } from '../api';
+import { usePolledPanel } from '../hooks';
 import { MethodBadge, StatusCode } from '../components/badges';
 import {
   Card,
@@ -21,6 +22,7 @@ import type {
   QueriesData,
   QueryEntry,
   RequestEntry,
+  RequestsData,
 } from '../types';
 
 const CLASSES = ['2xx', '3xx', '4xx', '5xx'] as const;
@@ -152,7 +154,15 @@ const columns: Column<RequestEntry>[] = [
 
 export function RequestsView() {
   const t = useTelemetry();
-  const data = t.requests;
+  // Live updates carry the newest 100 entries; "full buffer" polls everything held in memory.
+  const [full, setFull] = useState(false);
+  const fullPoll = usePolledPanel<RequestsData>(
+    'requests-full',
+    () => getPanel<RequestsData>('/requests?limit=5000'),
+    t.intervalMs,
+    full,
+  );
+  const data = full && fullPoll.data ? fullPoll.data : t.requests;
   const [classes, setClasses] = useState<ReadonlySet<string>>(new Set());
   const [method, setMethod] = useState('all');
   const [query, setQuery] = useState('');
@@ -195,7 +205,13 @@ export function RequestsView() {
             <Kpi
               label="Requests"
               value={sum ? sum.count : (data?.entries.length ?? '—')}
-              caption={data ? `${data.total} since start` : undefined}
+              caption={
+                data
+                  ? data.lifetime
+                    ? `${data.lifetime.requests.toLocaleString()} since start`
+                    : `${data.total} since start`
+                  : undefined
+              }
             />
             <Kpi label="p50" value={sum ? formatDuration(sum.p50Ms) : '—'} caption="median" />
             <Kpi label="p95" value={sum ? formatDuration(sum.p95Ms) : '—'} caption="slowest 5%" />
@@ -256,8 +272,23 @@ export function RequestsView() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
+              <label className="field">
+                <input
+                  type="checkbox"
+                  checked={full}
+                  onChange={(e) => setFull(e.target.checked)}
+                  aria-label="Show full buffer"
+                />{' '}
+                <span>Full buffer</span>
+              </label>
               <span className="muted-text" aria-live="polite">
                 {rows.length} of {data?.entries.length ?? 0} shown
+                {data && data.total > data.entries.length
+                  ? ` · ${data.total - data.entries.length} older in buffer`
+                  : ''}
+                {data?.capacity && data.lifetime && data.lifetime.requests > data.capacity
+                  ? ` · buffer keeps the last ${data.capacity} (raise requestLogSize)`
+                  : ''}
               </span>
             </div>
             {!data ? (

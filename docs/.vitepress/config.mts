@@ -44,6 +44,7 @@ export default defineConfig({
           { text: 'Database queries', link: '/guide/database' },
           { text: 'Custom panels (plugins)', link: '/guide/plugins' },
           { text: 'Capture and compatibility', link: '/guide/capture' },
+          { text: 'Metrics and load tests', link: '/guide/metrics' },
           { text: 'Persistence', link: '/guide/persistence' },
           { text: 'OpenTelemetry export', link: '/guide/opentelemetry' },
           { text: 'CLI, attach and MCP', link: '/guide/cli' },

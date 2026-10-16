@@ -22,7 +22,8 @@ export type BuiltInPanelId =
   | 'metrics'
   | 'outgoing'
   | 'errors'
-  | 'queries';
+  | 'queries'
+  | 'timeseries';
 
 /**
  * Panel identifier. Built-in panels are listed in {@link BuiltInPanelId};
@@ -248,9 +249,103 @@ export interface RequestsSummary {
 }
 
 export interface RequestsData {
+  /** Entries currently held in the ring buffer. */
   total: number;
+  /** Ring buffer capacity (`requestLogSize`). */
+  capacity: number;
+  /** Newest entries skipped before this page (paging). */
+  offset: number;
+  /** Oldest-first page of entries. */
   entries: RequestEntry[];
+  /** Summary over the whole buffer, not just this page. */
   summary: RequestsSummary;
+  /** Counters since process start, unaffected by buffer eviction. */
+  lifetime: { requests: number; errors: number };
+}
+
+/** One aggregated window of the metrics history. */
+export interface TimeSeriesPoint {
+  t: number;
+  requests: number;
+  rps: number;
+  /** 5xx count. */
+  errors: number;
+  errors4xx: number;
+  errorRate: number;
+  p50: number;
+  p90: number;
+  p95: number;
+  p99: number;
+  maxMs: number;
+  avgMs: number;
+  inflight: number;
+  bytesInPerSec: number;
+  bytesOutPerSec: number;
+  loopP50: number;
+  loopP99: number;
+  loopMax: number;
+  heapUsed: number;
+  heapTotal: number;
+  rss: number;
+  cpu: number;
+  gcCount: number;
+  gcMs: number;
+}
+
+export interface TimeSeriesData {
+  fromMs: number;
+  toMs: number;
+  stepMs: number;
+  startedAtMs: number;
+  retentionMs: number;
+  points: TimeSeriesPoint[];
+  /** Whole-range aggregate (exact percentiles, not averaged from points). */
+  summary: BenchRunSummary;
+  totals: { requests: number; errors5xx: number; errors4xx: number };
+  recording: { id: number; name: string; startMs: number } | null;
+}
+
+export interface BenchRunSummary {
+  durationSec: number;
+  requests: number;
+  errors5xx: number;
+  errors4xx: number;
+  avgRps: number;
+  peakRps: number;
+  p50: number;
+  p90: number;
+  p95: number;
+  p99: number;
+  maxMs: number;
+  avgMs: number;
+  bytesIn: number;
+  bytesOut: number;
+  mbPerSec: number;
+  inflightMax: number;
+  loopP50: number;
+  loopP99: number;
+  loopMax: number;
+  heapPeak: number;
+  rssPeak: number;
+  cpuAvg: number;
+  cpuPeak: number;
+  gcMs: number;
+  pointCount: number;
+}
+
+/** A named, saved slice of the metrics history (a load-test run). */
+export interface BenchRun {
+  id: number;
+  name: string;
+  startMs: number;
+  endMs: number;
+  summary: BenchRunSummary;
+  points: TimeSeriesPoint[];
+}
+
+export interface RunsData {
+  active: { id: number; name: string; startMs: number } | null;
+  runs: BenchRun[];
 }
 
 export interface EnvEntry {

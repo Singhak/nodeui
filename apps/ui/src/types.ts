@@ -109,8 +109,94 @@ export interface RequestEntry {
 
 export interface RequestsData {
   summary?: RequestsSummary;
+  /** Entries held in the ring buffer. */
   total: number;
+  capacity?: number;
+  offset?: number;
   entries: RequestEntry[];
+  /** Counters since process start, unaffected by buffer eviction. */
+  lifetime?: { requests: number; errors: number };
+}
+
+export interface TimeSeriesPoint {
+  t: number;
+  requests: number;
+  rps: number;
+  errors: number;
+  errors4xx: number;
+  errorRate: number;
+  p50: number;
+  p90: number;
+  p95: number;
+  p99: number;
+  maxMs: number;
+  avgMs: number;
+  inflight: number;
+  bytesInPerSec: number;
+  bytesOutPerSec: number;
+  loopP50: number;
+  loopP99: number;
+  loopMax: number;
+  heapUsed: number;
+  heapTotal: number;
+  rss: number;
+  cpu: number;
+  gcCount: number;
+  gcMs: number;
+}
+
+export interface TimeSeriesData {
+  fromMs: number;
+  toMs: number;
+  stepMs: number;
+  startedAtMs: number;
+  retentionMs: number;
+  points: TimeSeriesPoint[];
+  summary: BenchRunSummary;
+  totals: { requests: number; errors5xx: number; errors4xx: number };
+  recording: { id: number; name: string; startMs: number } | null;
+}
+
+export interface BenchRunSummary {
+  durationSec: number;
+  requests: number;
+  errors5xx: number;
+  errors4xx: number;
+  avgRps: number;
+  peakRps: number;
+  p50: number;
+  p90: number;
+  p95: number;
+  p99: number;
+  maxMs: number;
+  avgMs: number;
+  bytesIn: number;
+  bytesOut: number;
+  mbPerSec: number;
+  inflightMax: number;
+  loopP50: number;
+  loopP99: number;
+  loopMax: number;
+  heapPeak: number;
+  rssPeak: number;
+  cpuAvg: number;
+  cpuPeak: number;
+  gcMs: number;
+  pointCount: number;
+}
+
+export interface BenchRun {
+  id: number;
+  name: string;
+  startMs: number;
+  endMs: number;
+  summary: BenchRunSummary;
+  points: TimeSeriesPoint[];
+}
+
+export interface RunsData {
+  active: { id: number; name: string; startMs: number } | null;
+  runs: BenchRun[];
 }
 
 export interface HeapSnapshotData {

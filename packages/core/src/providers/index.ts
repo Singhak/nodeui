@@ -13,3 +13,10 @@ export { MetricsProvider } from './metrics';
 export { EnvProvider } from './env';
 export { RoutesProvider, extractRoutes } from './routes';
 export { LogsProvider, interceptConsole } from './logs';
+export {
+  TimeSeriesProvider,
+  histQuantile,
+  bucketIndex,
+  bucketUpperMs,
+  HIST_BUCKETS,
+} from './timeseries';

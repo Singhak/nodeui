@@ -45,6 +45,7 @@ import { OutgoingProvider } from './providers/outgoing';
 import { ErrorsProvider } from './providers/errors';
 import { QueriesProvider } from './providers/queries';
 import type { HealthCheck } from './providers/health';
+import { TimeSeriesProvider } from './providers/timeseries';
 import { MetricsProvider, LogsProvider, EnvProvider, RoutesProvider } from './providers';
 
 export interface NodeUIOptions {
@@ -210,9 +211,10 @@ const BUILT_IN_PANELS = new Set<string>([
   'outgoing',
   'errors',
   'queries',
+  'timeseries',
 ]);
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const RESERVED_API_NAMES = new Set(['config', 'live', 'confirmations']);
+const RESERVED_API_NAMES = new Set(['config', 'live', 'confirmations', 'runs', 'prometheus']);
 
 const SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
@@ -413,6 +415,11 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   const metricsProvider = new MetricsProvider();
   registry.register(metricsProvider);
 
+  const timeSeries = new TimeSeriesProvider();
+  registry.register(timeSeries);
+  // History must accumulate even when no console tab is open.
+  if (config.enabled) timeSeries.start(ctx);
+
   const logsProvider = new LogsProvider(config.logSize);
   registry.register(logsProvider);
 
@@ -489,6 +496,9 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     provider.start?.(ctx);
     pinned.add(provider.id);
   }
+
+  // The metrics history samples continuously; the inactivity timer must not stop it.
+  if (config.enabled) pinned.add('timeseries');
 
   const pluginMeta: Array<{ id: PanelId; title: string }> = [];
   for (const plugin of options.plugins ?? []) {
@@ -637,6 +647,69 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     sendJson(res, result.ok ? 200 : 500, result);
   }
 
+  async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of req) {
+      const buf = chunk as Buffer;
+      size += buf.length;
+      if (size > 8192) throw new Error('request body too large');
+      chunks.push(buf);
+    }
+    if (size === 0) return {};
+    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
+  }
+
+  async function handleRunAction(
+    req: IncomingMessage,
+    res: ServerResponse,
+    action: string,
+  ): Promise<void> {
+    let body: Record<string, unknown>;
+    try {
+      body = await readJsonBody(req);
+    } catch (err) {
+      sendJson(res, 400, {
+        ok: false,
+        error: {
+          code: 'bad-request',
+          message: err instanceof Error ? err.message : 'invalid JSON body',
+        },
+      });
+      return;
+    }
+    const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : '';
+    if (action === 'start') {
+      sendJson(res, 200, { ok: true, data: timeSeries.startRun(name) });
+    } else if (action === 'stop') {
+      const run = timeSeries.stopRun();
+      if (!run) {
+        sendJson(res, 409, {
+          ok: false,
+          error: { code: 'not-recording', message: 'No run is being recorded' },
+        });
+        return;
+      }
+      sendJson(res, 200, { ok: true, data: run });
+    } else if (action === 'save') {
+      const fromMs = Number(body.fromMs);
+      const toMs = Number(body.toMs);
+      if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) {
+        sendJson(res, 400, {
+          ok: false,
+          error: { code: 'bad-request', message: 'fromMs and toMs must define a valid range' },
+        });
+        return;
+      }
+      sendJson(res, 200, { ok: true, data: timeSeries.saveRange(name, fromMs, toMs) });
+    } else if (action === 'delete') {
+      sendJson(res, 200, { ok: true, data: { deleted: timeSeries.deleteRun(Number(body.id)) } });
+    } else {
+      notFound(res);
+    }
+  }
+
   async function handleLive(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const search = new URL(req.url ?? '/', 'http://localhost').searchParams;
     const requested = (search.get('panels') ?? '').split(',').filter(Boolean);
@@ -701,6 +774,21 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     if (method === 'GET' && apiPath === '/live') {
       return handleLive(req, res);
     }
+    if (method === 'GET' && apiPath === '/runs') {
+      sendJson(res, 200, { ok: true, data: timeSeries.listRuns() });
+      return;
+    }
+    if (method === 'GET' && apiPath === '/prometheus') {
+      const body = timeSeries.prometheus({ uptimeSeconds: process.uptime() });
+      res.writeHead(200, {
+        ...SECURITY_HEADERS,
+        'Content-Type': 'text/plain; version=0.0.4; charset=utf-8',
+        'Content-Length': Buffer.byteLength(body),
+        'Cache-Control': 'no-store',
+      });
+      res.end(body);
+      return;
+    }
     if (method === 'GET') {
       const panel = registry.get(apiPath.slice(1) as PanelId);
       if (panel) {
@@ -715,6 +803,9 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       }
       if (apiPath === '/heap-snapshot') {
         return takeHeapSnapshot(req, res);
+      }
+      if (apiPath.startsWith('/runs/')) {
+        return handleRunAction(req, res, apiPath.slice('/runs/'.length));
       }
     }
     notFound(res);
@@ -806,14 +897,40 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     return `${typeof r.baseUrl === 'string' ? r.baseUrl : ''}${path}` || undefined;
   }
 
+  const readMarks = new WeakMap<object, number>();
+
   function recordAppRequest(req: IncomingMessage, res: ServerResponse): number {
     const started = process.hrtime.bigint();
     const timestampMs = Date.now();
     const requestId = requestsProvider.reserveId();
     bindRequestId(req, requestId);
     const collectDetail = captureRequestDetail(req, res, config.requestDetail, config.maskSecrets);
+    const socket = req.socket;
+    // Headers are parsed before this hook runs, so count request bytes since the
+    // previous response on this keep-alive socket finished.
+    const readAtStart = (socket && readMarks.get(socket)) ?? 0;
+    const wroteAtStart = socket?.bytesWritten ?? 0;
+    timeSeries.requestStarted();
+    let settled = false;
+    res.on('close', () => {
+      if (!settled) {
+        settled = true;
+        timeSeries.requestAborted();
+      }
+    });
     res.on('finish', () => {
       const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
+      if (!settled) {
+        settled = true;
+        const readNow = socket?.bytesRead ?? 0;
+        if (socket) readMarks.set(socket, readNow);
+        timeSeries.requestFinished(
+          res.statusCode,
+          durationMs,
+          Math.max(0, readNow - readAtStart),
+          Math.max(0, (socket?.bytesWritten ?? 0) - wroteAtStart),
+        );
+      }
       requestsProvider.record(
         {
           method: req.method ?? '?',
@@ -908,6 +1025,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     },
     shutdown(): void {
       errorsProvider.detach();
+      timeSeries.stop();
       persistence?.close();
       exporter?.close();
       for (const id of pinned) registry.get(id)?.stop?.(ctx);

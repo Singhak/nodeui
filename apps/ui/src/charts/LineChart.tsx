@@ -84,6 +84,10 @@ export function LineChart({
   height = 200,
   yMax,
   emptyText = 'Waiting for data…',
+  cursorT,
+  onCursorT,
+  onBrush,
+  timeFormat,
 }: {
   series: ChartSeries[];
   title: string;
@@ -97,10 +101,19 @@ export function LineChart({
   /** Lower bound for the y domain maximum (so tiny values do not fill the plot). */
   yMax?: number;
   emptyText?: string;
+  /** Controlled crosshair time, so several charts can share one cursor. */
+  cursorT?: number | null;
+  onCursorT?: (t: number | null) => void;
+  /** Enables drag-to-zoom; called with the selected time range. */
+  onBrush?: (t0: number, t1: number) => void;
+  /** X-axis label formatter; defaults to wall-clock time. */
+  timeFormat?: (t: number) => string;
 }) {
+  const clock = timeFormat ?? formatClock;
   const [wrapRef, width] = useWidth<HTMLDivElement>();
   const [idx, setIdx] = useState<number | null>(null);
   const [showTable, setShowTable] = useState(false);
+  const [brush, setBrush] = useState<{ a: number; b: number } | null>(null);
   const uid = useId();
 
   const primary = useMemo(() => series.find((s) => s.points.length > 0)?.points ?? [], [series]);
@@ -147,7 +160,16 @@ export function LineChart({
   });
 
   const safeIdx = idx !== null && idx < primary.length ? idx : null;
-  const hoverT = safeIdx !== null ? (primary[safeIdx] as Pt).t : null;
+  const controlledIdx =
+    cursorT !== undefined && cursorT !== null && hasData ? nearestIndex(primary, cursorT) : null;
+  const hoverT =
+    cursorT !== undefined
+      ? controlledIdx !== null && controlledIdx >= 0
+        ? (primary[controlledIdx] as Pt).t
+        : null
+      : safeIdx !== null
+        ? (primary[safeIdx] as Pt).t
+        : null;
   const hoverRows =
     hoverT === null
       ? []
@@ -163,7 +185,30 @@ export function LineChart({
     const box = e.currentTarget.getBoundingClientRect();
     const px = ((e.clientX - box.left) / (box.width || 1)) * plotW;
     const t = dom.t0 + (px / plotW) * (dom.t1 - dom.t0);
-    setIdx(nearestIndex(primary, t));
+    const i = nearestIndex(primary, t);
+    setIdx(i);
+    if (i >= 0) onCursorT?.((primary[i] as Pt).t);
+    if (brush) setBrush({ a: brush.a, b: Math.min(plotW, Math.max(0, px)) });
+  };
+
+  const plotX = (e: PointerEvent<SVGRectElement>): number => {
+    const box = e.currentTarget.getBoundingClientRect();
+    return Math.min(plotW, Math.max(0, ((e.clientX - box.left) / (box.width || 1)) * plotW));
+  };
+  const onDown = (e: PointerEvent<SVGRectElement>): void => {
+    if (!onBrush || !hasData || e.button !== 0) return;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const px = plotX(e);
+    setBrush({ a: px, b: px });
+  };
+  const onUp = (e: PointerEvent<SVGRectElement>): void => {
+    if (!brush) return;
+    const b = plotX(e);
+    const a = brush.a;
+    setBrush(null);
+    if (Math.abs(b - a) < 8 || !onBrush) return;
+    const toT = (px: number): number => dom.t0 + (px / plotW) * (dom.t1 - dom.t0);
+    onBrush(toT(Math.min(a, b)), toT(Math.max(a, b)));
   };
 
   const onKey = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -179,7 +224,7 @@ export function LineChart({
   };
 
   const range = hasData
-    ? `${formatClock(dom.t0)} – ${formatClock(dom.t1)} · ${formatSpan(dom.t1 - dom.t0)}`
+    ? `${clock(dom.t0)} – ${clock(dom.t1)} · ${formatSpan(dom.t1 - dom.t0)}`
     : '';
   const tipLeft = hoverT !== null ? x(hoverT) : 0;
   const flip = tipLeft > width * 0.6;
@@ -254,7 +299,7 @@ export function LineChart({
                   textAnchor={i === 0 ? 'start' : i === xTicks.length - 1 ? 'end' : 'middle'}
                   className="axis-text"
                 >
-                  {formatClock(t)}
+                  {clock(t)}
                 </text>
               ))
             : null}
@@ -305,7 +350,23 @@ export function LineChart({
               height={plotH}
               fill="transparent"
               onPointerMove={onMove}
-              onPointerLeave={() => setIdx(null)}
+              onPointerDown={onDown}
+              onPointerUp={onUp}
+              onPointerLeave={() => {
+                setIdx(null);
+                onCursorT?.(null);
+              }}
+              style={onBrush ? { cursor: 'crosshair' } : undefined}
+            />
+          ) : null}
+          {brush ? (
+            <rect
+              x={M.l + Math.min(brush.a, brush.b)}
+              y={M.t}
+              width={Math.abs(brush.b - brush.a)}
+              height={plotH}
+              className="brush"
+              pointerEvents="none"
             />
           ) : null}
         </svg>
@@ -320,7 +381,7 @@ export function LineChart({
               top: M.t,
             }}
           >
-            <div className="tooltip-time">{formatClock(hoverT)}</div>
+            <div className="tooltip-time">{clock(hoverT)}</div>
             {hoverRows.map(({ s, p }) => (
               <div key={s.id} className="tooltip-row">
                 <svg width="14" height="8" aria-hidden="true">
@@ -364,7 +425,7 @@ export function LineChart({
                   .reverse()
                   .map((p) => (
                     <tr key={p.t}>
-                      <td className="mono nowrap">{formatClock(p.t)}</td>
+                      <td className="mono nowrap">{clock(p.t)}</td>
                       {series.map((s) => {
                         const i = nearestIndex(s.points, p.t);
                         return (
