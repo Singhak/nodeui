@@ -23,3 +23,7 @@ The journal is append-only NDJSON written asynchronously in batches (never on th
 ## Why a file and not SQLite?
 
 NodeUI supports Node 18+ and avoids native dependencies. `better-sqlite3` needs prebuilt binaries (problematic on some Alpine, Windows and CI images), and the built-in `node:sqlite` module requires Node 22.13+ and is still experimental. An append-only file covers the actual need (replay recent activity after a restart) with zero install cost. SQLite would help with multi-process sharing, querying older history and exact retention limits, so it is a candidate for an **optional backend** on Node versions that ship `node:sqlite`; it is not implemented yet.
+
+## Saved load-test runs
+
+Runs saved in Load tests (and the pinned baseline) are kept in a separate small JSON file. Set `runsFile` (or `NODEUI_RUNS_FILE`), or set `persist` and the file `nodeui-runs.json` is created next to the journal. Without either, runs live in memory only. The metrics history itself is never written to disk.

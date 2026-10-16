@@ -62,8 +62,9 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 └──────────────────────┴──────────────────────┴───────────────────────────────┘
 ```
 
-- **📊 Built-in Panels**: Health (with dependency checks), Requests, Queries, Errors, Outgoing HTTP calls, Runtime (Memory, CPU, Event-loop lag, Heap Snapshots), Routes, Logs, Environment, Startup Timeline and Metrics.
+- **📊 Built-in Panels**: Health (with dependency checks), Requests, Queries, Errors, Outgoing HTTP calls, Runtime (Memory, CPU, Event-loop lag, Heap Snapshots), Routes, Logs, Environment, Startup Timeline, Metrics history, Endpoints, Load tests, Alerts and a CPU Profiler.
 - **🔗 Request Correlation**: Outgoing HTTP calls and log lines are attributed to the request that caused them (via `AsyncLocalStorage`) and shown as a per-request timeline.
+- **📈 Grafana for local**: an in-memory metrics history with a latency heatmap, per-route performance, saved load-test runs with baselines and re-run/compare, threshold alerts, annotations and a `nodeui check` CI command. See [Metrics, load tests and alerts](#-metrics-load-tests-and-alerts-grafana-for-local).
 - **🔍 Request Detail (opt-in)**: Matched route pattern (`/users/:id`), query, headers and size-capped bodies, with credentials always redacted. See `captureRequestDetail`.
 - **🧩 Plugin Panels**: Add your own panels (queues, cache stats, feature flags) with a few lines — see [Custom panels](#-custom-panels-plugins).
 - **🐳 Docker-friendly**: Allow-list the Docker bridge or a dev hostname without opening the console to the world.
@@ -320,6 +321,23 @@ See each package's README for details. NestJS also works on the Fastify platform
 
 ---
 
+## 📈 Metrics, load tests and alerts (Grafana for local)
+
+NodeUI keeps a bounded metrics history in memory, so you can see how the app behaves over time with nothing to install.
+
+- **Metrics**: throughput, p50-p99 latency, concurrency, network, event loop, memory, CPU and GC, plus a latency heatmap. Drag across any chart to zoom; drop markers with `server.annotate('deployed v2')`.
+- **Endpoints**: latency, errors and share of total time per route.
+- **Load tests**: record a run while autocannon/k6/wrk fire (or use **Generate load**), pin a **baseline**, and compare. Runs persist across restarts when `persist` or `runsFile` is set.
+- **Alerts**: `nodeui({ alerts: [{ metric: 'p99', threshold: 300 }] })` or add rules in the console. A banner shows while one fires.
+- **Request drawer**: waterfall of queries, outgoing calls and logs; **Replay** to edit and re-send; Copy as curl/fetch/autocannon. Request filters live in the URL and can be saved as views.
+- **Profiler**: CPU flame graph on demand.
+- **CI**: `npx @singhak/nodeui-cli check --run latest --max-p99 300 --max-regression 10 http://127.0.0.1:3000` exits non-zero when a budget breaks.
+- **Real Grafana**: `GET /nodeui/api/prometheus` can be scraped by Prometheus.
+
+Full guide: [Metrics and load tests](https://singhak.github.io/nodeui/guide/metrics).
+
+---
+
 ## 🔌 Attach without code changes, and many services at once
 
 ```bash
@@ -408,6 +426,7 @@ The journal is append-only NDJSON written asynchronously in batches (never on th
 - **Crash window.** Writes are batched every ~250 ms and flushed on `server.shutdown()`. A hard crash or `kill -9` can lose the last fraction of a second; a torn last line is skipped on load.
 - **Bounded history.** Only the current file and one rotated generation (`<file>.1`) are kept, so disk use stays under about twice `maxBytes`. Older activity is dropped, and what is restored is still capped by the in-memory ring-buffer sizes (`requestLogSize`, `outgoingLogSize`, `queryLogSize`).
 - **Whole-file replay.** The journal is read fully into memory at startup. That is fine at the default 5 MiB; raising `maxBytes` far beyond tens of MiB slows startup.
+- **Runs are separate.** Saved load-test runs persist only with `runsFile` (or next to `persist`); the per-second metrics history is always in memory only.
 - **No querying.** It is a replay log, not a database: you cannot search or aggregate past sessions from the UI, only see what was restored into the live panels.
 - **Not everything is saved.** Logs, the per-second metrics chart, startup marks and heap snapshots are not persisted. Error counts reflect only the retained window.
 - **Masked at write time.** Secrets are masked before they reach disk, but changing masking rules later does not rewrite old lines. Bodies and headers are only in the file if you enabled them.
@@ -462,21 +481,26 @@ Publish the port on loopback only (`-p 127.0.0.1:3000:3000`). An `allowedRemoteA
 
 ## 🖥️ Interactive Panels
 
-| Panel             | Icon | Metric / Capability    | Details                                                                                                                                                                                                   |
-| :---------------- | :--: | :--------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Health**        |  🩺  | System state & uptime  | Shows `ok`/`degraded`/`critical`, Node.js version, PID, uptime, and current lag.                                                                                                                          |
-| **Memory**        |  🧠  | Heap & RSS telemetry   | Visualizes Heap used, Heap total, RSS, External memory, and system-level RAM with live sparklines.                                                                                                        |
-| **CPU**           |  ⚡  | Process utilization    | Tracks User CPU %, System CPU %, and aggregate process CPU load over time.                                                                                                                                |
-| **Event Loop**    |  ⏱️  | Lag sampling           | Monitors event-loop execution delay (current, peak max, average).                                                                                                                                         |
-| **Heap Snapshot** |  📸  | Memory leak inspection | One-click trigger for V8 `.heapsnapshot` generation protected by single-use nonces.                                                                                                                       |
-| **Requests**      |  🌐  | Traffic & Latency      | Live HTTP metrics grouped by route pattern, status breakdown, p50/p95/p99, and a request drawer with query, headers, optional bodies, Copy as curl and a correlated timeline.                             |
-| **Queries**       |  🗄️  | Database statements    | `pg` and `mysql2` are captured automatically; Prisma via `server.trackPrisma(prisma)`; Sequelize/TypeORM via `server.recordQuery()`. Flags slow queries and N+1 patterns, never records parameter values. |
-| **Errors**        |  ⚠️  | Failure grouping       | Errors grouped by type, message shape and origin with counts, stack trace and linked request. Express: `app.use(errorHandler)` after your routes; Fastify and Nest are automatic.                         |
-| **Outgoing**      |  📤  | Outbound HTTP calls    | `http`/`https` (axios, got, node-fetch) and global `fetch` calls with status, duration and failures.                                                                                                      |
-| **Routes**        |  🛣️  | Router introspection   | Automatic discovery of declared routes, HTTP verbs, paths, and controller handler names.                                                                                                                  |
-| **Logs**          |  📜  | Console capture        | Real-time stream of `console.log`, `info`, `warn`, `error` with search and log level filters.                                                                                                             |
-| **Environment**   |  🔐  | Configuration auditor  | Inspects `process.env` and custom configs with automatic secret redaction.                                                                                                                                |
-| **Startup**       |  ⏳  | Boot profiling         | Visual sequence diagram of initialization timestamps and `server.mark()` milestones.                                                                                                                      |
+| Panel             | Icon | Metric / Capability    | Details                                                                                                                                                                                                                                                                               |
+| :---------------- | :--: | :--------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Health**        |  🩺  | System state & uptime  | Shows `ok`/`degraded`/`critical`, Node.js version, PID, uptime, and current lag.                                                                                                                                                                                                      |
+| **Memory**        |  🧠  | Heap & RSS telemetry   | Visualizes Heap used, Heap total, RSS, External memory, and system-level RAM with live sparklines.                                                                                                                                                                                    |
+| **CPU**           |  ⚡  | Process utilization    | Tracks User CPU %, System CPU %, and aggregate process CPU load over time.                                                                                                                                                                                                            |
+| **Event Loop**    |  ⏱️  | Lag sampling           | Monitors event-loop execution delay (current, peak max, average).                                                                                                                                                                                                                     |
+| **Heap Snapshot** |  📸  | Memory leak inspection | One-click trigger for V8 `.heapsnapshot` generation protected by single-use nonces.                                                                                                                                                                                                   |
+| **Requests**      |  🌐  | Traffic & Latency      | Live HTTP metrics grouped by route pattern, status breakdown, p50/p95/p99, and a request drawer with query, headers, optional bodies, Copy as curl/fetch/autocannon, Replay with a response diff, a waterfall of its queries and calls, and filters kept in the URL with saved views. |
+| **Queries**       |  🗄️  | Database statements    | `pg` and `mysql2` are captured automatically; Prisma via `server.trackPrisma(prisma)`; Sequelize/TypeORM via `server.recordQuery()`. Flags slow queries and N+1 patterns, aggregates by statement, never records parameter values.                                                    |
+| **Errors**        |  ⚠️  | Failure grouping       | Errors grouped by type, message shape and origin with counts, stack trace and linked request. Express: `app.use(errorHandler)` after your routes; Fastify and Nest are automatic.                                                                                                     |
+| **Outgoing**      |  📤  | Outbound HTTP calls    | `http`/`https` (axios, got, node-fetch) and global `fetch` calls with status, duration and failures.                                                                                                                                                                                  |
+| **Routes**        |  🛣️  | Router introspection   | Automatic discovery of declared routes, HTTP verbs, paths, and controller handler names.                                                                                                                                                                                              |
+| **Logs**          |  📜  | Console capture        | Real-time stream of `console.log`, `info`, `warn`, `error` with search and log level filters.                                                                                                                                                                                         |
+| **Environment**   |  🔐  | Configuration auditor  | Inspects `process.env` and custom configs with automatic secret redaction.                                                                                                                                                                                                            |
+| **Startup**       |  ⏳  | Boot profiling         | Visual sequence diagram of initialization timestamps and `server.mark()` milestones.                                                                                                                                                                                                  |
+| **Metrics**       |  📊  | Grafana for local      | One hour of history at 1 s and eight hours at 10 s: throughput, latency percentiles, concurrency, network, event loop, memory, CPU, GC, a latency heatmap, a heap-trend leak hint and chart markers. Range picker, drag-to-zoom, shared crosshair.                                    |
+| **Endpoints**     |  🧭  | Per-route performance  | p50/p95/p99, 5xx rate, throughput trend and share of total time for every route, so the costliest endpoint is at the top.                                                                                                                                                             |
+| **Load tests**    |  ⏺️  | Before/after runs      | Record a run while autocannon/k6/wrk fire, or generate load from the console; pin a baseline, compare runs, re-run with one click, export/import. Persisted with `runsFile`.                                                                                                          |
+| **Alerts**        |  🚨  | Budgets                | Threshold rules on latency, error rate, throughput, event loop, CPU and memory, with a banner while firing. Also `nodeui check` for CI.                                                                                                                                               |
+| **Profiler**      |  🔥  | CPU flame graph        | Record a CPU profile for 5-60 s (confirmation nonce required) and read it as a flame graph plus top functions.                                                                                                                                                                        |
 
 ---
 
@@ -538,34 +562,36 @@ flowchart TB
 
 Passed to `nodeui(options)` or `NodeUIModule.register(options)`:
 
-| Option                   | Type                                                       | Default                                                             | Description                                                                                                                 |
-| :----------------------- | :--------------------------------------------------------- | :------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------- |
-| `path`                   | `string`                                                   | `'/nodeui'`                                                         | Base route prefix where console UI and API are mounted.                                                                     |
-| `host`                   | `string`                                                   | `'127.0.0.1'`                                                       | Allowed host interface for incoming requests.                                                                               |
-| `enabled`                | `boolean`                                                  | `env-based`                                                         | Explicitly enable (`true`) or disable (`false`) console.                                                                    |
-| `maskSecrets`            | `boolean`                                                  | `true`                                                              | Automatically redact sensitive environment and config values.                                                               |
-| `requestLogSize`         | `number`                                                   | `500`                                                               | In-memory capacity for HTTP request logs.                                                                                   |
-| `captureRequestDetail`   | `boolean \| { query, headers, bodies, maxBodyBytes }`      | `{ query: true, headers: true, bodies: false, maxBodyBytes: 4096 }` | What extra detail is recorded per request. `false` records none. Textual bodies only, masked and size-capped.               |
-| `queryLogSize`           | `number`                                                   | `200`                                                               | In-memory capacity for recorded database queries.                                                                           |
-| `slowQueryMs`            | `number`                                                   | `100`                                                               | Queries at or above this duration are flagged slow.                                                                         |
-| `capture`                | `'always' \| 'lazy'`                                       | `'always'`                                                          | Run outgoing / query / log capture from startup, or only while a panel is open. See [Capture](#-capture-and-compatibility). |
-| `persist`                | `string \| { file, maxBytes }`                             | `off`                                                               | Journal recent activity to an NDJSON file and restore it on restart. See [Persistence](#-persistence).                      |
-| `otlp`                   | `string \| { endpoint, serviceName, headers, intervalMs }` | `off`                                                               | Export spans to an OTLP/HTTP collector. See [OpenTelemetry export](#-opentelemetry-export).                                 |
-| `logSize`                | `number`                                                   | `500`                                                               | In-memory capacity for captured console messages.                                                                           |
-| `pollIntervalMs`         | `number`                                                   | `2000`                                                              | Sampler collection interval for CPU and event-loop lag.                                                                     |
-| `inactivityTimeoutMs`    | `number`                                                   | `60000`                                                             | Idling timeout before background samplers pause.                                                                            |
-| `confirmTtlMs`           | `number`                                                   | `60000`                                                             | Expiration window for mutation confirmation nonces.                                                                         |
-| `heapSnapshotDir`        | `string`                                                   | `<tmp>/nodeui-heap`                                                 | Destination directory where `.heapsnapshot` files are written.                                                              |
-| `allowedHosts`           | `string[]`                                                 | `[]`                                                                | Extra `Host` header names accepted besides loopback names.                                                                  |
-| `allowedOrigins`         | `string[]`                                                 | `[]`                                                                | Extra `Origin` values accepted for cross-origin calls.                                                                      |
-| `allowedRemoteAddresses` | `string[]`                                                 | `[]`                                                                | Extra client IPs / IPv4 and IPv6 CIDRs accepted (e.g. Docker bridge).                                                       |
-| `trustProxy`             | `boolean`                                                  | `false`                                                             | Accept requests carrying `X-Forwarded-*` headers.                                                                           |
-| `authToken`              | `string`                                                   | `undefined`                                                         | Require this token (`Authorization: Bearer`, cookie or `?token=`).                                                          |
-| `maxSseClients`          | `number`                                                   | `10`                                                                | Concurrent live-stream connections allowed.                                                                                 |
-| `plugins`                | `NodeUIProvider[]`                                         | `[]`                                                                | Custom panels.                                                                                                              |
-| `healthChecks`           | `Record<string, () => unknown>`                            | `{}`                                                                | Dependency checks shown in the Health panel.                                                                                |
-| `outgoingLogSize`        | `number`                                                   | `200`                                                               | Capacity of the outgoing HTTP call buffer.                                                                                  |
-| `config`                 | `object \| fn`                                             | `undefined`                                                         | Custom metadata object or getter to display in the Environment panel.                                                       |
+| Option                   | Type                                                               | Default                                                             | Description                                                                                                                 |
+| :----------------------- | :----------------------------------------------------------------- | :------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------- |
+| `path`                   | `string`                                                           | `'/nodeui'`                                                         | Base route prefix where console UI and API are mounted.                                                                     |
+| `host`                   | `string`                                                           | `'127.0.0.1'`                                                       | Allowed host interface for incoming requests.                                                                               |
+| `enabled`                | `boolean`                                                          | `env-based`                                                         | Explicitly enable (`true`) or disable (`false`) console.                                                                    |
+| `maskSecrets`            | `boolean`                                                          | `true`                                                              | Automatically redact sensitive environment and config values.                                                               |
+| `requestLogSize`         | `number`                                                           | `500`                                                               | In-memory capacity for HTTP request logs.                                                                                   |
+| `captureRequestDetail`   | `boolean \| { query, headers, bodies, maxBodyBytes }`              | `{ query: true, headers: true, bodies: false, maxBodyBytes: 4096 }` | What extra detail is recorded per request. `false` records none. Textual bodies only, masked and size-capped.               |
+| `queryLogSize`           | `number`                                                           | `200`                                                               | In-memory capacity for recorded database queries.                                                                           |
+| `slowQueryMs`            | `number`                                                           | `100`                                                               | Queries at or above this duration are flagged slow.                                                                         |
+| `capture`                | `'always' \| 'lazy'`                                               | `'always'`                                                          | Run outgoing / query / log capture from startup, or only while a panel is open. See [Capture](#-capture-and-compatibility). |
+| `persist`                | `string \| { file, maxBytes }`                                     | `off`                                                               | Journal recent activity to an NDJSON file and restore it on restart. See [Persistence](#-persistence).                      |
+| `runsFile`               | `string`                                                           | `off` (or next to the `persist` journal)                            | Keep saved load-test runs and the baseline across restarts (`NODEUI_RUNS_FILE`).                                            |
+| `alerts`                 | `{ metric, threshold, op?, forSeconds?, windowSeconds?, name? }[]` | `[]`                                                                | Threshold alert rules. Metrics: `p50`, `p95`, `p99`, `maxMs`, `errorRate`, `rps`, `loopP99`, `cpu`, `heapMb`, `rssMb`.      |
+| `otlp`                   | `string \| { endpoint, serviceName, headers, intervalMs }`         | `off`                                                               | Export spans to an OTLP/HTTP collector. See [OpenTelemetry export](#-opentelemetry-export).                                 |
+| `logSize`                | `number`                                                           | `500`                                                               | In-memory capacity for captured console messages.                                                                           |
+| `pollIntervalMs`         | `number`                                                           | `2000`                                                              | Sampler collection interval for CPU and event-loop lag.                                                                     |
+| `inactivityTimeoutMs`    | `number`                                                           | `60000`                                                             | Idling timeout before background samplers pause.                                                                            |
+| `confirmTtlMs`           | `number`                                                           | `60000`                                                             | Expiration window for mutation confirmation nonces.                                                                         |
+| `heapSnapshotDir`        | `string`                                                           | `<tmp>/nodeui-heap`                                                 | Destination directory where `.heapsnapshot` files are written.                                                              |
+| `allowedHosts`           | `string[]`                                                         | `[]`                                                                | Extra `Host` header names accepted besides loopback names.                                                                  |
+| `allowedOrigins`         | `string[]`                                                         | `[]`                                                                | Extra `Origin` values accepted for cross-origin calls.                                                                      |
+| `allowedRemoteAddresses` | `string[]`                                                         | `[]`                                                                | Extra client IPs / IPv4 and IPv6 CIDRs accepted (e.g. Docker bridge).                                                       |
+| `trustProxy`             | `boolean`                                                          | `false`                                                             | Accept requests carrying `X-Forwarded-*` headers.                                                                           |
+| `authToken`              | `string`                                                           | `undefined`                                                         | Require this token (`Authorization: Bearer`, cookie or `?token=`).                                                          |
+| `maxSseClients`          | `number`                                                           | `10`                                                                | Concurrent live-stream connections allowed.                                                                                 |
+| `plugins`                | `NodeUIProvider[]`                                                 | `[]`                                                                | Custom panels.                                                                                                              |
+| `healthChecks`           | `Record<string, () => unknown>`                                    | `{}`                                                                | Dependency checks shown in the Health panel.                                                                                |
+| `outgoingLogSize`        | `number`                                                           | `200`                                                               | Capacity of the outgoing HTTP call buffer.                                                                                  |
+| `config`                 | `object \| fn`                                                     | `undefined`                                                         | Custom metadata object or getter to display in the Environment panel.                                                       |
 
 ### Environment Variables
 
@@ -581,6 +607,7 @@ Passed to `nodeui(options)` or `NodeUIModule.register(options)`:
 | `NODEUI_OTLP_ENDPOINT`         | `unset`             | OTLP/HTTP collector base URL (e.g. `http://localhost:4318`). |
 | `NODEUI_CAPTURE`               | `always`            | `lazy` installs capture hooks only while a panel is open.    |
 | `NODEUI_PERSIST_FILE`          | `unset`             | Journal file for persistence across restarts.                |
+| `NODEUI_RUNS_FILE`             | `unset`             | File for saved load-test runs across restarts.               |
 | `NODEUI_CAPTURE_BODIES`        | `false`             | `true` records masked request/response bodies.               |
 | `NODEUI_CONFIRM_TTL_MS`        | `60000`             | Nonce validity duration.                                     |
 | `NODEUI_HEAP_SNAPSHOT_DIR`     | `<tmp>/nodeui-heap` | Snapshot output directory.                                   |
@@ -604,26 +631,40 @@ All JSON endpoints return an envelope format:
 }
 ```
 
-| Method | Endpoint             | Description                                                       |
-| :----- | :------------------- | :---------------------------------------------------------------- |
-| `GET`  | `/api/health`        | Overall health state, PID, uptime, Node version, and current lag. |
-| `GET`  | `/api/memory`        | Process memory stats (RSS, heapUsed, heapTotal, external).        |
-| `GET`  | `/api/cpu`           | Process CPU percentages (total, user, system).                    |
-| `GET`  | `/api/event-loop`    | Current, maximum, and average event-loop lag times.               |
-| `GET`  | `/api/requests`      | Recent HTTP traffic buffer and aggregate metrics.                 |
-| `GET`  | `/api/outgoing`      | Recent outgoing HTTP calls with status and duration.              |
-| `GET`  | `/api/queries`       | Recent database queries with slow and N+1 flags.                  |
-| `GET`  | `/api/errors`        | Grouped errors with counts, stacks and last request.              |
-| `GET`  | `/api/routes`        | Declared routes (Express, Fastify, NestJS, Hapi, Hono).           |
-| `GET`  | `/api/logs`          | Captured console logs buffer with timestamp and level.            |
-| `GET`  | `/api/env`           | Masked environment variables and app configurations.              |
-| `GET`  | `/api/startup`       | Startup timeline marks registered via `server.mark()`.            |
-| `GET`  | `/api/metrics`       | Per-second request and error buckets for the last minute.         |
-| `GET`  | `/api/config`        | Effective (non-secret) configuration, panel list and plugin meta. |
-| `GET`  | `/api/<plugin-id>`   | Output of each registered custom panel (`plugins` option).        |
-| `GET`  | `/api/live`          | **Server-Sent Events (SSE)** real-time metric stream.             |
-| `POST` | `/api/confirmations` | Issues a single-use cryptographic token for mutating actions.     |
-| `POST` | `/api/heap-snapshot` | Takes a V8 heap snapshot (requires `x-nodeui-confirm` header).    |
+| Method | Endpoint                                                                                | Description                                                                                    |
+| :----- | :-------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
+| `GET`  | `/api/health`                                                                           | Overall health state, PID, uptime, Node version, and current lag.                              |
+| `GET`  | `/api/memory`                                                                           | Process memory stats (RSS, heapUsed, heapTotal, external).                                     |
+| `GET`  | `/api/cpu`                                                                              | Process CPU percentages (total, user, system).                                                 |
+| `GET`  | `/api/event-loop`                                                                       | Current, maximum, and average event-loop lag times.                                            |
+| `GET`  | `/api/requests`                                                                         | Recent HTTP traffic buffer and aggregate metrics.                                              |
+| `GET`  | `/api/outgoing`                                                                         | Recent outgoing HTTP calls with status and duration.                                           |
+| `GET`  | `/api/queries`                                                                          | Recent database queries with slow and N+1 flags.                                               |
+| `GET`  | `/api/errors`                                                                           | Grouped errors with counts, stacks and last request.                                           |
+| `GET`  | `/api/routes`                                                                           | Declared routes (Express, Fastify, NestJS, Hapi, Hono).                                        |
+| `GET`  | `/api/logs`                                                                             | Captured console logs buffer with timestamp and level.                                         |
+| `GET`  | `/api/env`                                                                              | Masked environment variables and app configurations.                                           |
+| `GET`  | `/api/startup`                                                                          | Startup timeline marks registered via `server.mark()`.                                         |
+| `GET`  | `/api/metrics`                                                                          | Per-second request and error buckets for the last minute.                                      |
+| `GET`  | `/api/timeseries`                                                                       | Metrics history (`range`, `from`/`to`, `points`, `heatmap=1`) with annotations and heap trend. |
+| `GET`  | `/api/routemetrics`                                                                     | Per-route latency percentiles, errors and trend.                                               |
+| `GET`  | `/api/runs`                                                                             | Saved load-test runs, the active recording and the baseline id.                                |
+| `POST` | `/api/runs/start`, `/stop`, `/save`, `/delete`, `/baseline`, `/import`, `/reset-routes` | Manage runs.                                                                                   |
+| `GET`  | `/api/runs/export`                                                                      | All saved runs as a JSON download.                                                             |
+| `GET`  | `/api/prometheus`                                                                       | Prometheus text exposition for a local Grafana.                                                |
+| `GET`  | `/api/alerts`                                                                           | Alert rules, state and fired/resolved history.                                                 |
+| `POST` | `/api/alerts/add`, `/remove`                                                            | Manage alert rules.                                                                            |
+| `POST` | `/api/annotations/add`, `/remove`                                                       | Chart markers.                                                                                 |
+| `GET`  | `/api/cpu-profile`                                                                      | CPU profile state and result.                                                                  |
+| `POST` | `/api/cpu-profile/start`, `/stop`                                                       | Record a CPU profile (start needs `x-nodeui-confirm`).                                         |
+| `GET`  | `/api/loadtest`                                                                         | Built-in load generator status.                                                                |
+| `POST` | `/api/loadtest/start`, `/stop`                                                          | Fire load at the app (start needs `x-nodeui-confirm`).                                         |
+| `POST` | `/api/replay`                                                                           | Re-send a captured request to the app (needs `x-nodeui-confirm`).                              |
+| `GET`  | `/api/config`                                                                           | Effective (non-secret) configuration, panel list and plugin meta.                              |
+| `GET`  | `/api/<plugin-id>`                                                                      | Output of each registered custom panel (`plugins` option).                                     |
+| `GET`  | `/api/live`                                                                             | **Server-Sent Events (SSE)** real-time metric stream.                                          |
+| `POST` | `/api/confirmations`                                                                    | Issues a single-use cryptographic token for mutating actions.                                  |
+| `POST` | `/api/heap-snapshot`                                                                    | Takes a V8 heap snapshot (requires `x-nodeui-confirm` header).                                 |
 
 ---
 

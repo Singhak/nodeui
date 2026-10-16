@@ -6,6 +6,7 @@ Command line for NodeUI: attach the console to **any Node app without changing i
 npx @singhak/nodeui-cli attach -- node server.js
 npx @singhak/nodeui-cli attach -- npm run dev
 npx @singhak/nodeui-cli dashboard api=http://127.0.0.1:3000 worker=http://127.0.0.1:3001
+npx @singhak/nodeui-cli check --run latest --max-p99 300 http://127.0.0.1:3000
 ```
 
 ## `attach`
@@ -33,6 +34,28 @@ Notes and limits:
 - Do not combine it with a NodeUI adapter in the same app: requests would be recorded twice.
 - Production stays fail-closed: with `NODE_ENV=production` nothing is attached unless you pass `--force`. The usual loopback, Host and Origin checks apply.
 - Child processes inherit `NODE_OPTIONS`, so tools that fork workers (e.g. `npm run dev`) attach in each Node process that creates an HTTP server.
+
+## `check`
+
+Fails (exit 1) when a running console's recent traffic or a saved load-test run breaks a budget, for CI or a pre-push script:
+
+```bash
+npx @singhak/nodeui-cli check --window 300 --max-p99 300 --max-error-rate 1 http://127.0.0.1:3000
+npx @singhak/nodeui-cli check --run latest --max-regression 10 http://127.0.0.1:3000
+```
+
+| Option                          | Meaning                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `--window <sec>`                | check the last N seconds (default 300)                                                           |
+| `--run <name\|latest>`          | check a saved run instead                                                                        |
+| `--max-p50/--max-p95/--max-p99` | latency budgets in ms                                                                            |
+| `--max-error-rate <pct>`        | percentage of 5xx responses                                                                      |
+| `--min-rps <n>`                 | throughput floor                                                                                 |
+| `--max-loop-p99 <ms>`           | event-loop delay budget                                                                          |
+| `--max-rss-mb <n>`              | memory budget                                                                                    |
+| `--max-regression <pct>`        | with `--run`: p99 may rise and throughput may fall at most this much against the pinned baseline |
+
+Exit codes: `0` all budgets held, `1` a budget failed, `2` nothing to check (no traffic, unknown run, console unreachable, or no limits given).
 
 ## `dashboard`
 
