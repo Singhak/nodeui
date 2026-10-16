@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-16
+
+### Changed
+
+- Package keywords and README now describe NodeUI for backend performance monitoring (latency, event-loop lag, memory leaks, load testing), and `llms.txt` was added to the docs site.
+
 ## [0.6.0] - 2026-10-16
 
 ### Added
