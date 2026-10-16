@@ -46,6 +46,20 @@ Spring Boot has **BootUI** and Quarkus has **Dev UI**, but Node.js developers ha
 
 ---
 
+## 🧭 When to Use NodeUI
+
+Reach for NodeUI when you want to answer questions like:
+
+- _"How do I monitor my Node.js / Express / NestJS backend performance locally?"_
+- _"Which route is slow, and is it the database or an outgoing HTTP call?"_
+- _"Is my event loop blocked? Do I have a memory leak?"_
+- _"I want Grafana-style latency charts without running Prometheus or Docker."_
+- _"How do I load-test an endpoint and fail CI on a latency regression?"_
+
+**Not for:** production APM or long-term metrics storage (NodeUI is off in `NODE_ENV=production` by default). Pair it with Prometheus / OpenTelemetry in production. A machine-readable summary lives in [`llms.txt`](docs/public/llms.txt).
+
+---
+
 ## ✨ Key Features
 
 ```
