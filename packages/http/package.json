@@ -25,7 +25,22 @@
     "console",
     "developer-tools",
     "observability",
-    "debugging"
+    "debugging",
+    "apm",
+    "performance-monitoring",
+    "backend-monitoring",
+    "node-performance",
+    "metrics",
+    "latency",
+    "event-loop-lag",
+    "memory-leak",
+    "heap-snapshot",
+    "cpu-profiler",
+    "load-testing",
+    "request-tracing",
+    "local-observability",
+    "grafana-alternative",
+    "mcp"
   ],
   "engines": {
     "node": ">=18.0.0"
