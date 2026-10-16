@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-16
+
 ### Added
 
 - Metrics history and a **Metrics** view: throughput, latency percentiles, concurrency, network, event-loop delay, memory, CPU and GC for the last hour at 1s and eight hours at 10s, with a range picker, drag-to-zoom and a shared crosshair (`GET /api/timeseries`).
@@ -136,7 +138,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark script (`scripts/bench.mjs`) and README benchmarks section.
 - README FAQ/troubleshooting and security & limitations sections.
 
-[Unreleased]: https://github.com/Singhak/nodeui/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Singhak/nodeui/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Singhak/nodeui/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Singhak/nodeui/compare/v0.3.1...v0.5.0
 [0.3.1]: https://github.com/Singhak/nodeui/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Singhak/nodeui/releases/tag/v0.3.0
