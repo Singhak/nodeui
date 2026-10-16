@@ -10,21 +10,28 @@ directly. Use core directly to integrate a framework that has no adapter.
 
 Each provider exposes one panel through `GET {path}/api/{id}`:
 
-| id              | Panel          | Notes                                                      |
-| --------------- | -------------- | ---------------------------------------------------------- |
-| `health`        | Health         | Event-loop + memory status, plus your `healthChecks`.      |
-| `memory`        | Memory         | Samples process + OS memory on start.                      |
-| `cpu`           | CPU            | Process CPU percent from `process.cpuUsage()`.             |
-| `event-loop`    | Event-loop lag | Drift vs. a 1ms `setInterval`, last 600 samples.           |
-| `heap-snapshot` | Heap snapshot  | Writes `nodeui-heap-<pid>-<ts>.heapsnapshot` (owner-only). |
-| `startup`       | Startup        | Timing marks recorded via `server.mark(name)`.             |
-| `requests`      | Requests       | Ring buffer of app HTTP requests (default 500).            |
-| `metrics`       | Metrics        | Requests/errors per second for the last minute.            |
-| `env`           | Environment    | `process.env` + your `config`, masked.                     |
-| `routes`        | Routes         | Express router introspection, or `server.setRoutes()`.     |
-| `logs`          | Logs           | `console.*` capture plus `server.addLogSource()`.          |
-| `outgoing`      | Outgoing HTTP  | `http`/`https`/`fetch` calls made by the app.              |
-| _your id_       | _your title_   | Custom panels via the `plugins` option (see below).        |
+| id              | Panel          | Notes                                                                                                               |
+| --------------- | -------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `health`        | Health         | Event-loop + memory status, plus your `healthChecks`.                                                               |
+| `memory`        | Memory         | Samples process + OS memory on start.                                                                               |
+| `cpu`           | CPU            | Process CPU percent from `process.cpuUsage()`.                                                                      |
+| `event-loop`    | Event-loop lag | Drift vs. a 1ms `setInterval`, last 600 samples.                                                                    |
+| `heap-snapshot` | Heap snapshot  | Writes `nodeui-heap-<pid>-<ts>.heapsnapshot` (owner-only).                                                          |
+| `startup`       | Startup        | Timing marks recorded via `server.mark(name)`.                                                                      |
+| `requests`      | Requests       | Ring buffer of app HTTP requests (default 500).                                                                     |
+| `metrics`       | Metrics        | Requests/errors per second for the last minute.                                                                     |
+| `env`           | Environment    | `process.env` + your `config`, masked.                                                                              |
+| `routes`        | Routes         | Express router introspection, or `server.setRoutes()`.                                                              |
+| `logs`          | Logs           | `console.*` capture plus `server.addLogSource()`.                                                                   |
+| `outgoing`      | Outgoing HTTP  | `http`/`https`/`fetch` calls made by the app.                                                                       |
+| `queries`       | Queries        | `pg`/`mysql2`/Prisma statements with slow and N+1 flags, plus per-statement aggregates.                             |
+| `errors`        | Errors         | Grouped errors with counts, stacks and the linked request.                                                          |
+| `timeseries`    | Metrics        | 1 s / 10 s history of throughput, latency histogram, event loop, memory, CPU, GC, heatmap, annotations, heap trend. |
+| `routemetrics`  | Endpoints      | Per-route latency percentiles, 5xx rate and trend.                                                                  |
+| `alerts`        | Alerts         | Threshold rules, state and fired/resolved history.                                                                  |
+| `cpu-profile`   | Profiler       | On-demand CPU profile as a call tree / flame graph.                                                                 |
+| `loadtest`      | Load generator | Worker-thread load against the app, saved as a run.                                                                 |
+| _your id_       | _your title_   | Custom panels via the `plugins` option (see below).                                                                 |
 
 ## API
 
@@ -38,6 +45,14 @@ All endpoints live under `{path}/api` and return
 - `POST /heap-snapshot` — capture a snapshot; must send
   `x-nodeui-confirm: <nonce>` from a fresh confirmation. A missing, expired, or
   replayed nonce returns `409` with error code `confirmation-required`.
+
+- `GET /timeseries?range=<ms>&points=<n>&heatmap=1` — metrics history; also
+  `from`/`to`. `GET /prometheus` exposes it as Prometheus text.
+- `GET /runs`, `GET /runs/export`, `POST /runs/{start,stop,save,delete,baseline,import}` —
+  saved load-test runs and the pinned baseline (kept in memory, or on disk with `runsFile`).
+- `POST /alerts/{add,remove}`, `POST /annotations/{add,remove}` — alert rules and chart markers.
+- `POST /replay` — re-send a captured request to the app itself.
+- `POST /cpu-profile/{start,stop}`, `POST /loadtest/{start,stop}` — profiler and load generator.
 
 `GET /` serves the bundled React console with an SPA fallback to `index.html`.
 
@@ -56,8 +71,10 @@ All endpoints live under `{path}/api` and return
   (URLs, bearer tokens, JWTs, `password=...`) are scrubbed too, in REST and SSE. Disable with
   `maskSecrets: false`.
 - **Headers:** CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` on every response.
-- **Read-only default:** the heap snapshot is the only mutating action and is
-  gated behind a fresh nonce.
+- **Read-only default:** actions with side effects (heap snapshot, replay, CPU
+  profile, load test) each need a fresh single-use nonce. Replay and the load
+  generator can only target the app's own listening address, never a
+  user-supplied host.
 - **Zero-cost when disabled:** the middleware is a pass-through; no timers or
   hooks are created.
 

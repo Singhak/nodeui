@@ -257,7 +257,7 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') void onMark();
           }}
-          style={{ width: 200 }}
+          style={{ width: 150 }}
         />
         <button
           type="button"
@@ -275,7 +275,7 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
           aria-label="Run name"
           value={saveName}
           onChange={(e) => setSaveName(e.target.value)}
-          style={{ width: 170 }}
+          style={{ width: 130 }}
         />
         <button
           type="button"
@@ -309,7 +309,7 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
         </Card>
       ) : (
         <>
-          <div className="tile-row">
+          <div className="tile-row tile-row-6">
             <Kpi
               label="Requests"
               value={sum ? sum.requests.toLocaleString() : '—'}

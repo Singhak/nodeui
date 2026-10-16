@@ -1700,3 +1700,10 @@ td.wrap {
   outline-offset: -2px;
   z-index: 1;
 }
+
+/* six tiles on one row when there is room (Metrics) */
+@container (min-width: 900px) {
+  .tile-row.tile-row-6 {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
