@@ -158,3 +158,52 @@ describe('server query helpers', () => {
     }
   });
 });
+
+describe('statement aggregates', () => {
+  it('groups executions by normalized statement, most total time first', () => {
+    const provider = new QueriesProvider({ size: 100, slowQueryMs: 100 });
+    const q = (sql: string, durationMs: number, requestId?: number, error?: string) =>
+      provider.record({
+        system: 'pg',
+        sql,
+        durationMs,
+        timestampMs: 1000,
+        ...(requestId !== undefined ? { requestId } : {}),
+        ...(error ? { error } : {}),
+      });
+    for (let i = 1; i <= 20; i += 1) q(`select * from users where id = ${i}`, 10, 1);
+    q('select * from orders where total > 5', 300, 2);
+    q('select * from orders where total > 99', 100, 3, 'boom');
+    const { statements } = provider.get().data;
+    expect(statements.map((s) => s.key)).toEqual([
+      'select * from orders where total > ?',
+      'select * from users where id = ?',
+    ]);
+    const [orders, users] = statements;
+    expect(orders).toMatchObject({ count: 2, errors: 1, totalMs: 400, avgMs: 200, maxMs: 300 });
+    expect(users).toMatchObject({
+      count: 20,
+      totalMs: 200,
+      p95Ms: 10,
+      nPlusOneRequests: 1,
+      maxRepeats: 20,
+    });
+    expect(orders?.nPlusOneRequests).toBe(0);
+  });
+
+  it('caps the list and truncates long statements', () => {
+    const provider = new QueriesProvider({ size: 200, slowQueryMs: 100 });
+    for (let i = 0; i < 80; i += 1) {
+      provider.record({ system: 'pg', sql: `select c${i} from t`, durationMs: i, timestampMs: 1 });
+    }
+    provider.record({
+      system: 'pg',
+      sql: `select ${'x'.repeat(2000)} from t`,
+      durationMs: 1,
+      timestampMs: 1,
+    });
+    const { statements } = provider.get().data;
+    expect(statements).toHaveLength(50);
+    expect(statements.every((s) => s.sample.length <= 400)).toBe(true);
+  });
+});

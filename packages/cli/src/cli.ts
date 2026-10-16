@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /* eslint-disable no-console -- this is a CLI; stdout is its interface */
 import { attach, type AttachOptions } from './attach';
+import { runCheck, type CheckLimits } from './check';
 import { startDashboard } from './dashboard';
 import { serveMcp } from './mcp';
 import { parseTarget, type ServiceTarget } from './targets';
@@ -11,6 +12,7 @@ Usage:
   nodeui attach [options] -- <command...>   run a command with the console attached
   nodeui dashboard [options] <name=url>...  one page for several running consoles
   nodeui mcp <name=url>...                  MCP server (stdio) so AI agents can read a console
+  nodeui check [options] <url>              fail (exit 1) when latency, errors or throughput break a budget
 
 attach options:
   --path <prefix>      console path (default /nodeui)
@@ -23,6 +25,15 @@ attach options:
 dashboard options:
   --port <n>           port to listen on (default 4000, loopback only)
 
+check options (exit 0 pass, 1 failed, 2 nothing to check):
+  --window <sec>       check the last N seconds (default 300)
+  --run <name|latest>  check a saved load-test run instead
+  --max-p50 <ms>  --max-p95 <ms>  --max-p99 <ms>   latency budgets
+  --max-error-rate <pct>                         5xx percentage
+  --min-rps <n>   --max-loop-p99 <ms>   --max-rss-mb <n>
+  --max-regression <pct>  with --run: p99 may rise / throughput may fall by at most this
+                          much against the pinned baseline run
+
 mcp: read-only tools over stdio; add it to an MCP client as
   { "command": "npx", "args": ["@singhak/nodeui-cli", "mcp", "http://127.0.0.1:3000"] }
 
@@ -30,6 +41,7 @@ Examples:
   npx @singhak/nodeui-cli attach -- node server.js
   npx @singhak/nodeui-cli attach -- npm run dev
   npx @singhak/nodeui-cli dashboard api=http://127.0.0.1:3000 worker=http://127.0.0.1:3001
+  npx @singhak/nodeui-cli check --run latest --max-p99 300 --max-error-rate 1 http://127.0.0.1:3000
 `;
 
 interface Parsed {
@@ -38,7 +50,31 @@ interface Parsed {
   rest: string[];
 }
 
-const VALUE_FLAGS = new Set(['path', 'token', 'persist', 'otlp', 'port']);
+const VALUE_FLAGS = new Set([
+  'path',
+  'token',
+  'persist',
+  'otlp',
+  'port',
+  'window',
+  'run',
+  'max-p50',
+  'max-p95',
+  'max-p99',
+  'max-error-rate',
+  'min-rps',
+  'max-loop-p99',
+  'max-rss-mb',
+  'max-regression',
+]);
+
+function num(flags: Record<string, string | true>, name: string): number | undefined {
+  const v = flags[name];
+  if (typeof v !== 'string') return undefined;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) throw new Error(`--${name} needs a non-negative number`);
+  return n;
+}
 
 export function parseArgs(argv: string[]): Parsed {
   const flags: Record<string, string | true> = {};
@@ -103,6 +139,27 @@ export async function main(argv: string[]): Promise<number> {
     });
     await dashboard.close();
     return 0;
+  }
+
+  if (command === 'check') {
+    const [spec] = positional;
+    if (!spec) throw new Error('give the console URL, e.g. http://127.0.0.1:3000');
+    const limits: CheckLimits = {
+      maxP50: num(flags, 'max-p50'),
+      maxP95: num(flags, 'max-p95'),
+      maxP99: num(flags, 'max-p99'),
+      maxErrorRate: num(flags, 'max-error-rate'),
+      minRps: num(flags, 'min-rps'),
+      maxLoopP99: num(flags, 'max-loop-p99'),
+      maxRssMb: num(flags, 'max-rss-mb'),
+      maxRegression: num(flags, 'max-regression'),
+    };
+    return runCheck({
+      target: parseTarget(spec),
+      limits,
+      run: str(flags, 'run'),
+      windowSeconds: num(flags, 'window'),
+    });
   }
 
   if (command === 'mcp') {

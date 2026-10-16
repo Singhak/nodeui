@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
-import { deleteRun, getRuns, startRun, stopRun } from '../api';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { deleteRun, exportRuns, getRuns, importRuns, setBaseline, startRun, stopRun } from '../api';
 import { LineChart, type ChartSeries } from '../charts/LineChart';
 import { Card, EmptyState, ErrorState, Skeleton, ViewHeader } from '../components/common';
 import { Kpi } from '../components/Kpi';
 import { formatBytes, formatClock, formatDuration, formatSeconds } from '../format';
+import { downloadFile } from '../export';
 import { usePolledPanel } from '../hooks';
+import { LoadGenerator, type RerunRequest } from './LoadGenerator';
 import { COMPARE_ROWS, compareValue, formatDelta, formatRunReport } from '../report';
-import type { BenchRun, RunsData } from '../types';
+import type { BenchRun, LoadTestConfig, RunsData } from '../types';
 
 const relTime = (t: number): string => `+${formatSeconds(t / 1000)}`;
 
@@ -24,6 +26,24 @@ function runSeries(
     points: run.points.map((p) => ({ t: p.t - t0, v: p[pick] })),
     dash: color % 2 === 0 ? '4 3' : undefined,
   };
+}
+
+/** Compact p99 / throughput deltas of a run against the pinned baseline. */
+function VsBaseline({ base, run }: { base: BenchRun; run: BenchRun }) {
+  const p99 = compareValue(base.summary.p99, run.summary.p99, 'lower');
+  const rps = compareValue(base.summary.avgRps, run.summary.avgRps, 'higher');
+  const cell = (label: string, d: ReturnType<typeof compareValue>): ReactNode => (
+    <span
+      className={`delta ${d.verdict === 'better' ? 'delta-good' : d.verdict === 'worse' ? 'delta-bad' : ''}`}
+    >
+      {label} {formatDelta(d)}
+    </span>
+  );
+  return (
+    <span className="vs-baseline">
+      {cell('p99', p99)} {cell('req/s', rps)}
+    </span>
+  );
 }
 
 function Elapsed({ since }: { since: number }) {
@@ -162,6 +182,9 @@ export function RunsView({ intervalMs }: { intervalMs: number }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<number[]>([]);
+  const [rerun, setRerun] = useState<RerunRequest | null>(null);
+  // After a re-run finishes, compare the new run against the one it repeated.
+  const rerunOf = useRef<number | null>(null);
 
   const data = poll.data;
   const runs = useMemo(() => data?.runs ?? [], [data]);
@@ -185,7 +208,24 @@ export function RunsView({ intervalMs }: { intervalMs: number }) {
   const toggle = (id: number): void =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id].slice(-2)));
 
-  const [a, b] = selected;
+  const baselineRun = runs.find((r) => r.id === data?.baselineId);
+  const fileRef = useRef<HTMLInputElement>(null);
+  // One run selected while a baseline is pinned compares against that baseline.
+  const first = selected[0];
+  const [a, b] =
+    selected.length === 1 && first && baselineRun && baselineRun.id !== first.id
+      ? [baselineRun, first]
+      : selected;
+
+  const doExport = (): Promise<void> =>
+    act(async () => {
+      downloadFile('nodeui-runs.json', await exportRuns(), 'application/json');
+    });
+  const doImport = (file: File | undefined): Promise<void> =>
+    act(async () => {
+      if (!file) return;
+      await importRuns(JSON.parse(await file.text()) as unknown);
+    });
   const cmpSeries: ChartSeries[] =
     a && b
       ? [
@@ -206,6 +246,17 @@ export function RunsView({ intervalMs }: { intervalMs: number }) {
       <ViewHeader
         title="Load tests"
         description="Record a run while you fire traffic (autocannon, k6, wrk…), then compare runs before and after a change."
+      />
+      <LoadGenerator
+        intervalMs={intervalMs}
+        rerun={rerun}
+        onFinished={(runId) => {
+          poll.refetch();
+          if (runId === undefined) return;
+          const original = rerunOf.current;
+          rerunOf.current = null;
+          setPicked(original === null ? [runId] : [original, runId]);
+        }}
       />
       <Card>
         <div className="toolbar">
@@ -254,6 +305,40 @@ export function RunsView({ intervalMs }: { intervalMs: number }) {
           Tip: forgot to press record? Open <a href="#/metrics">Metrics</a>, drag across the
           interval that contains your test, and choose “Save as run”.
         </p>
+        <div className="toolbar">
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={busy}
+            onClick={() => void doExport()}
+          >
+            Export runs
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+          >
+            Import runs
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            aria-label="Import runs file"
+            hidden
+            onChange={(e) => {
+              void doImport(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+          <span className="muted-text">
+            {data && !data.persisted
+              ? 'Runs are kept in memory. Set the persist or runsFile option to keep them across restarts.'
+              : 'Runs are saved to disk.'}
+          </span>
+        </div>
         {error ? <ErrorState message={error} /> : null}
       </Card>
 
@@ -303,6 +388,7 @@ export function RunsView({ intervalMs }: { intervalMs: number }) {
                     <th scope="col" className="num">
                       5xx
                     </th>
+                    <th scope="col">vs baseline</th>
                     <th scope="col">
                       <span className="sr-only">Actions</span>
                     </th>
@@ -327,7 +413,51 @@ export function RunsView({ intervalMs }: { intervalMs: number }) {
                       <td className="num mono">{formatDuration(r.summary.p50)}</td>
                       <td className="num mono">{formatDuration(r.summary.p99)}</td>
                       <td className="num mono">{r.summary.errors5xx}</td>
-                      <td>
+                      <td className="nowrap">
+                        {baselineRun && r.id === baselineRun.id ? (
+                          <strong>Baseline</strong>
+                        ) : baselineRun ? (
+                          <VsBaseline base={baselineRun} run={r} />
+                        ) : (
+                          <span className="muted-text">—</span>
+                        )}
+                      </td>
+                      <td className="nowrap">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={busy}
+                          aria-label={
+                            baselineRun?.id === r.id
+                              ? `Clear baseline ${r.name}`
+                              : `Set ${r.name} as baseline`
+                          }
+                          onClick={() =>
+                            void act(() => setBaseline(baselineRun?.id === r.id ? null : r.id))
+                          }
+                        >
+                          {baselineRun?.id === r.id ? 'Unpin' : 'Set baseline'}
+                        </button>{' '}
+                        {r.loadTest ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              disabled={busy || data?.active !== null}
+                              aria-label={`Re-run ${r.name}`}
+                              title="Run the same load test again and compare"
+                              onClick={() => {
+                                rerunOf.current = r.id;
+                                setRerun({
+                                  token: Date.now(),
+                                  config: r.loadTest as LoadTestConfig,
+                                });
+                              }}
+                            >
+                              Re-run
+                            </button>{' '}
+                          </>
+                        ) : null}
                         <button
                           type="button"
                           className="btn btn-sm"

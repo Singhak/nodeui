@@ -3,3 +3,4 @@ export { startDashboard, type Dashboard, type DashboardOptions } from './dashboa
 export { fetchPanel, parseTarget, PanelError, type ServiceTarget } from './targets';
 export { serveMcp, type McpOptions } from './mcp';
 export { buildDigest, type DigestInput } from './digest';
+export { evaluateChecks, runCheck, type CheckLimits, type CheckSummary } from './check';

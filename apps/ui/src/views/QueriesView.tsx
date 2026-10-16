@@ -10,9 +10,9 @@ import {
   ViewHeader,
 } from '../components/common';
 import { DataTable, type Column } from '../components/DataTable';
-import { formatClock, formatDuration } from '../format';
+import { formatClock, formatDuration, formatPercent } from '../format';
 import { usePanel } from '../telemetry';
-import type { QueriesData, QueryEntry } from '../types';
+import type { QueriesData, QueryEntry, QueryStatement } from '../types';
 
 const columns: Column<QueryEntry>[] = [
   {
@@ -65,12 +65,95 @@ const columns: Column<QueryEntry>[] = [
   },
 ];
 
+function statementColumns(totalMs: number): Column<QueryStatement>[] {
+  return [
+    {
+      key: 'sample',
+      label: 'Statement',
+      sortValue: (s) => s.key,
+      render: (s) => s.sample,
+      className: 'mono truncate',
+      title: (s) => s.sample,
+    },
+    {
+      key: 'count',
+      label: 'Calls',
+      align: 'right',
+      sortValue: (s) => s.count,
+      render: (s) => s.count.toLocaleString(),
+      className: 'mono nowrap',
+      width: 76,
+    },
+    {
+      key: 'total',
+      label: 'Total time',
+      align: 'right',
+      sortValue: (s) => s.totalMs,
+      render: (s) => (
+        <span className="share-cell" title={`${formatDuration(s.totalMs)} in total`}>
+          <span className="share-bar" aria-hidden="true">
+            <span
+              style={{ width: `${Math.max(2, (totalMs > 0 ? s.totalMs / totalMs : 0) * 100)}%` }}
+            />
+          </span>
+          {formatPercent(totalMs > 0 ? s.totalMs / totalMs : 0, 0)}
+        </span>
+      ),
+      width: 130,
+    },
+    {
+      key: 'avg',
+      label: 'Avg',
+      align: 'right',
+      sortValue: (s) => s.avgMs,
+      render: (s) => formatDuration(s.avgMs),
+      className: 'mono nowrap',
+      width: 84,
+    },
+    {
+      key: 'p95',
+      label: 'p95',
+      align: 'right',
+      sortValue: (s) => s.p95Ms,
+      render: (s) => formatDuration(s.p95Ms),
+      className: 'mono nowrap',
+      width: 84,
+    },
+    {
+      key: 'max',
+      label: 'Max',
+      align: 'right',
+      sortValue: (s) => s.maxMs,
+      render: (s) => formatDuration(s.maxMs),
+      className: 'mono nowrap',
+      width: 84,
+    },
+    {
+      key: 'flags',
+      label: 'Flags',
+      sortValue: (s) => s.nPlusOneRequests * 1000 + s.errors,
+      render: (s) => (
+        <>
+          {s.nPlusOneRequests > 0 ? (
+            <span className="badge-slowest" title={`Ran ${s.maxRepeats}× in one request`}>
+              N+1 ×{s.maxRepeats}
+            </span>
+          ) : null}
+          {s.errors > 0 ? <span className="badge-slowest">{s.errors} failed</span> : null}
+        </>
+      ),
+      width: 150,
+    },
+  ];
+}
+
 export function QueriesView({ intervalMs }: { intervalMs: number }) {
   const { data, error, refetch } = usePanel<QueriesData>('queries', '/queries', intervalMs);
   const [slowOnly, setSlowOnly] = useState(false);
   const [repeatedOnly, setRepeatedOnly] = useState(false);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<QueryEntry | null>(null);
+  const [mode, setMode] = useState<'log' | 'statements'>('log');
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -81,6 +164,17 @@ export function QueriesView({ intervalMs }: { intervalMs: number }) {
         (q === '' || `${e.system} ${e.sql} ${e.error ?? ''}`.toLowerCase().includes(q)),
     );
   }, [data, slowOnly, repeatedOnly, query]);
+
+  const statements = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (data?.statements ?? []).filter(
+      (s) =>
+        (!slowOnly || s.maxMs >= (data?.slowQueryMs ?? Infinity)) &&
+        (!repeatedOnly || s.nPlusOneRequests > 0) &&
+        (q === '' || `${s.system} ${s.sample}`.toLowerCase().includes(q)),
+    );
+  }, [data, slowOnly, repeatedOnly, query]);
+  const statementTotalMs = (data?.statements ?? []).reduce((sum, s) => sum + s.totalMs, 0);
 
   return (
     <>
@@ -97,6 +191,24 @@ export function QueriesView({ intervalMs }: { intervalMs: number }) {
         ) : (
           <>
             <div className="toolbar">
+              <div className="chip-row" role="group" aria-label="Query view">
+                <button
+                  type="button"
+                  className={`chip${mode === 'log' ? ' chip-active' : ''}`}
+                  aria-pressed={mode === 'log'}
+                  onClick={() => setMode('log')}
+                >
+                  Log
+                </button>
+                <button
+                  type="button"
+                  className={`chip${mode === 'statements' ? ' chip-active' : ''}`}
+                  aria-pressed={mode === 'statements'}
+                  onClick={() => setMode('statements')}
+                >
+                  By statement
+                </button>
+              </div>
               <Chip active={slowOnly} onClick={() => setSlowOnly((v) => !v)} tone="4xx">
                 slow only
               </Chip>
@@ -116,7 +228,24 @@ export function QueriesView({ intervalMs }: { intervalMs: number }) {
                 {data.nPlusOneGroups} N+1 {data.nPlusOneGroups === 1 ? 'group' : 'groups'}
               </span>
             </div>
-            {rows.length === 0 ? (
+            {mode === 'statements' ? (
+              statements.length === 0 ? (
+                <EmptyState title="No statements to show">
+                  {data.entries.length === 0
+                    ? 'Nothing captured yet. Run some queries and they are grouped here.'
+                    : 'No statement matches the current filters.'}
+                </EmptyState>
+              ) : (
+                <DataTable
+                  caption="Statements by total time"
+                  columns={statementColumns(statementTotalMs)}
+                  rows={statements}
+                  rowKey={(s) => s.key}
+                  defaultSort={{ key: 'total', dir: 'desc' }}
+                  maxHeight="calc(100vh - 300px)"
+                />
+              )
+            ) : rows.length === 0 ? (
               <EmptyState title="No queries to show">
                 {data.entries.length === 0
                   ? 'Queries from pg and mysql2 are captured automatically while this view is open. For Prisma call server.trackPrisma(client); for other ORMs use server.recordQuery().'

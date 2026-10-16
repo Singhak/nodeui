@@ -1396,3 +1396,307 @@ td.wrap {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+/* latency heatmap */
+.heatmap {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.heatmap-axis {
+  position: relative;
+  width: 64px;
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.heatmap-axis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(50%);
+  white-space: nowrap;
+}
+.heatmap-plot {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  touch-action: none;
+}
+.heatmap-plot canvas {
+  display: block;
+}
+.heatmap-tip {
+  position: absolute;
+  pointer-events: none;
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+/* per-route time share */
+.share-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+.share-bar {
+  display: inline-block;
+  width: 56px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+.share-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--series-1);
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* replay */
+.replay {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.replay-line {
+  display: flex;
+  gap: 8px;
+}
+.replay-line .mono {
+  flex: 1;
+  min-width: 0;
+}
+.replay-field {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.replay textarea {
+  width: 100%;
+  resize: vertical;
+}
+.diff div {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.diff-add {
+  background: rgba(46, 160, 67, 0.18);
+}
+.diff-del {
+  background: rgba(218, 54, 51, 0.18);
+}
+
+/* request waterfall */
+.wf-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.wf-chip {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.wf-db::before,
+.wf-http::before,
+.wf-app::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 2px;
+}
+.wf-db::before {
+  background: var(--series-2);
+}
+.wf-http::before {
+  background: var(--series-3);
+}
+.wf-app::before {
+  background: var(--series-1);
+}
+.wf-warn {
+  border-color: currentColor;
+}
+.wf-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-left: 38%;
+  margin-right: 130px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.waterfall {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wf-row {
+  display: grid;
+  grid-template-columns: 38% 1fr 130px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.wf-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wf-track {
+  position: relative;
+  height: 14px;
+  background: color-mix(in srgb, var(--border) 40%, transparent);
+  border-radius: 3px;
+}
+.wf-bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 2px;
+  background: var(--series-1);
+}
+.wf-bar-query {
+  background: var(--series-2);
+}
+.wf-bar-outgoing {
+  background: var(--series-3);
+}
+.wf-bar-request {
+  background: var(--series-1);
+  opacity: 0.55;
+}
+.wf-dot {
+  position: absolute;
+  top: 3px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.wf-time {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* alerts */
+.alert-banner {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--crit);
+  background: color-mix(in srgb, var(--crit) 12%, var(--surface));
+  border-bottom: 1px solid var(--crit);
+}
+.alert-banner a {
+  margin-left: 4px;
+  font-weight: 600;
+}
+.alert-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+/* chart markers */
+.marker line {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.marker path {
+  fill: var(--muted);
+  cursor: help;
+}
+.marker-alert line {
+  stroke: var(--crit);
+}
+.marker-alert path {
+  fill: var(--crit);
+}
+.marker-run line {
+  stroke: var(--series-4);
+}
+.marker-run path {
+  fill: var(--series-4);
+}
+.marker-app line,
+.marker-note line {
+  stroke: var(--series-1);
+}
+.marker-app path,
+.marker-note path {
+  fill: var(--series-1);
+}
+
+/* flame graph */
+.flame-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.flame-plot {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.flame-cell {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border: 0;
+  border-right: 1px solid var(--surface);
+  color: #111;
+  font: inherit;
+  font-size: 11px;
+  line-height: 19px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.flame-cell:hover,
+.flame-cell:focus-visible {
+  filter: brightness(1.12);
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+  z-index: 1;
+}

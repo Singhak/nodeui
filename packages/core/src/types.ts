@@ -23,7 +23,11 @@ export type BuiltInPanelId =
   | 'outgoing'
   | 'errors'
   | 'queries'
-  | 'timeseries';
+  | 'timeseries'
+  | 'routemetrics'
+  | 'alerts'
+  | 'cpu-profile'
+  | 'loadtest';
 
 /**
  * Panel identifier. Built-in panels are listed in {@link BuiltInPanelId};
@@ -57,6 +61,8 @@ export interface NodeUIConfig {
   capture: 'always' | 'lazy';
   /** Journal file for persisting recent activity across restarts, or null. */
   persistFile: string | null;
+  /** File that keeps saved load-test runs across restarts, or null (memory only). */
+  runsFile: string | null;
   /** Rotation threshold for the journal. */
   persistMaxBytes: number;
   /** OTLP/HTTP trace export settings, or null when disabled. */
@@ -303,6 +309,54 @@ export interface TimeSeriesData {
   summary: BenchRunSummary;
   totals: { requests: number; errors5xx: number; errors4xx: number };
   recording: { id: number; name: string; startMs: number } | null;
+  /** Latency heatmap for the window; only present with `?heatmap=1`. */
+  heatmap?: LatencyHeatmap;
+  /** Markers inside the window (deploys, notes, load-test boundaries, alerts). */
+  annotations?: Annotation[];
+  heapTrend?: HeapTrend;
+}
+
+/** Time x latency grid: `cells[col][row]` counts requests in that window and latency band. */
+export interface LatencyHeatmap {
+  /** Window start times (ms), one per column. */
+  times: number[];
+  /** Upper latency bound (ms) of each row, fastest first. */
+  rowUpperMs: number[];
+  /** Request counts, `cells[col][row]`. */
+  cells: number[][];
+  stepMs: number;
+}
+
+export interface RouteMetricRow {
+  method: string;
+  path: string;
+  count: number;
+  errors5xx: number;
+  errors4xx: number;
+  /** 5xx / count, 0..1. */
+  errorRate: number;
+  avgMs: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  maxMs: number;
+  /** Total time spent in this route (sum of durations), the "where does time go" measure. */
+  totalMs: number;
+  bytesOut: number;
+  rps: number;
+  lastMs: number;
+  /** Requests/s per 10s bucket, oldest first (last five minutes). */
+  sparkRps: number[];
+  /** Average latency per 10s bucket, oldest first. */
+  sparkAvgMs: number[];
+}
+
+export interface RouteMetricsData {
+  startedAtMs: number;
+  sparkStepMs: number;
+  /** Busiest-by-total-time first. */
+  routes: RouteMetricRow[];
+  totals: { requests: number; totalMs: number };
 }
 
 export interface BenchRunSummary {
@@ -341,10 +395,24 @@ export interface BenchRun {
   endMs: number;
   summary: BenchRunSummary;
   points: TimeSeriesPoint[];
+  /** Present when the run came from the built-in load generator, so it can be re-run. */
+  loadTest?: LoadTestConfig;
 }
 
 export interface RunsData {
   active: { id: number; name: string; startMs: number } | null;
+  runs: BenchRun[];
+  /** Run that new runs are compared against, if one is pinned. */
+  baselineId: number | null;
+  /** True when runs are saved to disk and survive a restart. */
+  persisted: boolean;
+}
+
+/** On-disk / export format of saved runs. */
+export interface RunsFile {
+  version: 1;
+  nextRunId: number;
+  baselineId: number | null;
   runs: BenchRun[];
 }
 
@@ -425,6 +493,8 @@ export interface QueryEntry {
 }
 
 export interface QueriesData {
+  /** Per-statement aggregates over the whole buffer, most total time first. */
+  statements: QueryStatement[];
   total: number;
   failed: number;
   slow: number;
@@ -493,4 +563,173 @@ export interface ConfigData {
   locked: boolean;
   /** Plugin panel ids and titles, in registration order. */
   plugins: Array<{ id: PanelId; title: string }>;
+}
+
+/** Input of `POST /api/replay`: a request to re-send to the app itself. */
+export interface ReplayRequest {
+  method?: string;
+  /** Path plus query string, starting with `/`. */
+  path?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+export interface ReplayResult {
+  status: number;
+  statusMessage: string;
+  headers: Record<string, string>;
+  durationMs: number;
+  sizeBytes: number;
+  /** Response body when textual (capped at 64 kB). */
+  body: string;
+  bodyTruncated: boolean;
+  /** True when the body was not text and was left out. */
+  binary: boolean;
+}
+
+export type AlertMetric =
+  'p50' | 'p95' | 'p99' | 'maxMs' | 'errorRate' | 'rps' | 'loopP99' | 'cpu' | 'heapMb' | 'rssMb';
+
+export type AlertRuleState = 'ok' | 'pending' | 'firing';
+
+export interface AlertRule {
+  id: number;
+  name: string;
+  metric: AlertMetric;
+  op: '>' | '<';
+  threshold: number;
+  forSeconds: number;
+  windowSeconds: number;
+  /** `config` rules come from options and cannot be removed in the console. */
+  source: 'config' | 'ui';
+}
+
+export interface AlertEvent {
+  ruleId: number;
+  name: string;
+  type: 'fired' | 'resolved';
+  atMs: number;
+  value: number;
+  threshold: number;
+  metric: AlertMetric;
+}
+
+export interface AlertsData {
+  rules: Array<AlertRule & { state: AlertRuleState; value: number | null; sinceMs: number }>;
+  firing: number;
+  /** Newest first. */
+  events: AlertEvent[];
+  metrics: Array<{ id: AlertMetric; label: string; unit: string }>;
+}
+
+/** One normalized statement, aggregated over every captured execution. */
+export interface QueryStatement {
+  /** Normalized text (literals replaced by `?`). */
+  key: string;
+  /** A real example of the statement, truncated. */
+  sample: string;
+  system: string;
+  count: number;
+  errors: number;
+  totalMs: number;
+  avgMs: number;
+  p95Ms: number;
+  maxMs: number;
+  /** Requests in which this statement ran 3+ times (N+1 suspects). */
+  nPlusOneRequests: number;
+  /** Largest repeat count within a single request. */
+  maxRepeats: number;
+  lastMs: number;
+}
+
+export type AnnotationKind = 'note' | 'app' | 'run' | 'alert';
+
+/** A marker on the metrics time axis. */
+export interface Annotation {
+  id: number;
+  atMs: number;
+  label: string;
+  /** `note` and `app` come from people or the host app; `run` and `alert` are automatic. */
+  kind: AnnotationKind;
+}
+
+/** Verdict of the heap leak heuristic over the requested window. */
+export interface HeapTrend {
+  windowMs: number;
+  /** Slope of the heap's lower envelope (post-GC floor), MB per minute. */
+  slopeMbPerMin: number;
+  floorStartMb: number;
+  floorEndMb: number;
+  /** Goodness of the linear fit, 0..1. */
+  r2: number;
+  suspect: boolean;
+  reason: string;
+}
+
+/** One function in the call tree of a CPU profile. */
+export interface FlameNode {
+  name: string;
+  /** Short source location, e.g. `src/routes/users.js`. */
+  file: string;
+  line: number;
+  /** Time in this function and everything it called. */
+  totalMs: number;
+  /** Time spent in this function itself. */
+  selfMs: number;
+  children: FlameNode[];
+}
+
+export interface TopFunction {
+  name: string;
+  file: string;
+  line: number;
+  selfMs: number;
+  /** Fraction of the whole profile (0..1). */
+  share: number;
+}
+
+export interface CpuProfileResult {
+  durationMs: number;
+  totalMs: number;
+  /** Time the process was idle (waiting for work), included in `totalMs`. */
+  idleMs: number;
+  sampleCount: number;
+  tree: FlameNode;
+  top: TopFunction[];
+}
+
+export type CpuProfileData =
+  | { state: 'idle' }
+  | { state: 'running'; seconds: number; startedAtMs: number }
+  | {
+      state: 'done';
+      seconds: number;
+      startedAtMs: number;
+      finishedAtMs: number;
+      result: CpuProfileResult;
+    }
+  | { state: 'error'; seconds: number; startedAtMs: number; error: string };
+
+/** What the built-in load generator fires at the app. */
+export interface LoadTestConfig {
+  method: string;
+  path: string;
+  headers: Record<string, string>;
+  body: string;
+  connections: number;
+  durationSec: number;
+  maxRequests: number;
+  name: string;
+}
+
+export interface LoadTestStatus {
+  state: 'idle' | 'running' | 'done' | 'error';
+  config?: LoadTestConfig;
+  startedAtMs?: number;
+  sent: number;
+  completed: number;
+  errors: number;
+  /** Saved run produced by a finished test. */
+  runId?: number;
+  error?: string;
 }

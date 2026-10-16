@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Load tests** view: record named runs (or save a zoomed range retroactively), copy a text report, and compare two runs with better/worse deltas and overlaid charts (`/api/runs`).
 - `GET /api/prometheus`: Prometheus text exposition, so a local Grafana can scrape the console.
 - Requests: `?limit=&offset=` paging, a "Full buffer" toggle in the UI, and a lifetime counter that is unaffected by ring-buffer eviction.
+- **Endpoints** view: latency percentiles, 5xx rate, throughput sparkline and share of total time per route (`GET /api/routemetrics`), plus a **latency heatmap** on Metrics (`/api/timeseries?heatmap=1`).
+- **Replay**: edit and re-send a captured request to the app (confirmation nonce required, `POST /api/replay`), with a response diff; Copy as fetch / autocannon next to Copy as curl.
+- Request drawer: a **waterfall** of queries, outgoing calls and logs with a DB / HTTP / app time breakdown.
+- Load tests: pin a **baseline** (new runs show deltas against it), export/import runs as JSON, and persist runs across restarts (`runsFile` option, or next to the `persist` journal).
+- **Alerts**: threshold rules (`alerts` option or the Alerts view), a banner and tab-title marker while firing, fired/resolved history (`GET /api/alerts`).
+- `nodeui check <url>` CLI: exit non-zero when latency, error rate, throughput, event loop or memory break a budget, optionally against the pinned baseline run, for CI.
+- Queries: **By statement** view aggregating normalised statements (calls, total time share, avg/p95/max, N+1 and failure flags).
+- Requests: minimum-duration filter, filters kept in the URL, named saved views and Copy link.
+- Chart **annotations**: `server.annotate("deployed v2")`, an Add marker box, and automatic markers for load-test runs and alerts.
+- Metrics: **Heap trend** tile that flags a possible leak when the post-GC heap floor keeps rising.
+- **Profiler** view: record a CPU profile for up to 60 s (confirmation nonce required) and read it as a flame graph with a top-functions table.
+- **Generate load**: a built-in worker-thread load generator that saves its result as a run you can re-run and compare with one click (confirmation nonce required).
 - Documentation site on GitHub Pages (<https://singhak.github.io/nodeui/>), built with VitePress from `docs/`.
 
 ## [0.5.0] - 2026-10-02

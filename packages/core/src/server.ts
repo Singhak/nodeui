@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type {
   ApiEnvelope,
   ConfigData,
@@ -26,6 +26,9 @@ import {
 } from './safety';
 import { AUTH_COOKIE, createGuard } from './guard';
 import { ConfirmationStore } from './confirmations';
+import { AnnotationStore } from './annotations';
+import { RunStore } from './run-store';
+import { normalizeReplayRequest, replayRequest, ReplayError, type ReplayTarget } from './replay';
 import { DEFAULT_LOG_SIZE } from './constants';
 import { startSse } from './sse';
 import { ProviderRegistry } from './registry';
@@ -46,6 +49,10 @@ import { ErrorsProvider } from './providers/errors';
 import { QueriesProvider } from './providers/queries';
 import type { HealthCheck } from './providers/health';
 import { TimeSeriesProvider } from './providers/timeseries';
+import { RouteMetricsProvider } from './providers/route-metrics';
+import { AlertsProvider, type AlertRuleInput } from './providers/alerts';
+import { CpuProfileProvider } from './providers/cpu-profile';
+import { LoadGenProvider } from './providers/load-gen';
 import { MetricsProvider, LogsProvider, EnvProvider, RoutesProvider } from './providers';
 
 export interface NodeUIOptions {
@@ -83,6 +90,19 @@ export interface NodeUIOptions {
    * version control.
    */
   persist?: string | { file: string; maxBytes?: number };
+  /**
+   * File that keeps saved load-test runs (and the pinned baseline) across
+   * restarts, or `NODEUI_RUNS_FILE`. Defaults to `nodeui-runs.json` next to the
+   * `persist` journal when that is set; otherwise runs live in memory only.
+   */
+  runsFile?: string;
+  /**
+   * Threshold alerts, e.g. `{ metric: 'p99', threshold: 300 }` fires when the
+   * 10-second p99 stays above 300 ms for 5 seconds. Metrics: p50, p95, p99,
+   * maxMs, errorRate (%), rps, loopP99, cpu (%), heapMb, rssMb. More rules can
+   * be added in the console.
+   */
+  alerts?: AlertRuleInput[];
   /**
    * When the outgoing-call, query and log instrumentation runs. `'always'`
    * (default) records from startup, so you can open the console after a problem
@@ -149,6 +169,11 @@ export interface NodeUIServer {
   setRoutes(source: RouteEntry[] | (() => RouteEntry[])): void;
   /** Records a bootstrap timing mark, e.g. `mark("listening")`. */
   mark(name: string): void;
+  /**
+   * Drops a marker on the metrics charts, e.g. `annotate("deployed v1.4")` or
+   * `annotate("cache enabled")`, so a change can be matched to its effect.
+   */
+  annotate(label: string): void;
   /** Whether a background-sampling provider is currently running. */
   isProviderActive(id: PanelId): boolean;
   /** Pushes an external log entry into the log viewer (logger adapter). */
@@ -196,6 +221,20 @@ export function serializeEnvelope<T>(envelope: ApiEnvelope<T>, mask = true): str
   return JSON.stringify(mask ? maskSecrets(envelope) : envelope);
 }
 
+function journalFile(
+  options: NodeUIOptions,
+  env: Record<string, string | undefined>,
+): string | null {
+  return (
+    (typeof options.persist === 'string' ? options.persist : options.persist?.file) ??
+    env.NODEUI_PERSIST_FILE ??
+    null
+  );
+}
+
+const REPLAY_BODY_LIMIT = 256 * 1024;
+const RUNS_IMPORT_LIMIT = 4 * 1024 * 1024;
+
 const BUILT_IN_PANELS = new Set<string>([
   'health',
   'memory',
@@ -212,9 +251,20 @@ const BUILT_IN_PANELS = new Set<string>([
   'errors',
   'queries',
   'timeseries',
+  'routemetrics',
+  'alerts',
+  'cpu-profile',
+  'loadtest',
 ]);
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const RESERVED_API_NAMES = new Set(['config', 'live', 'confirmations', 'runs', 'prometheus']);
+const RESERVED_API_NAMES = new Set([
+  'config',
+  'live',
+  'confirmations',
+  'runs',
+  'prometheus',
+  'replay',
+]);
 
 const SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
@@ -316,6 +366,12 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       (typeof options.persist === 'string' ? options.persist : options.persist?.file) ??
       env.NODEUI_PERSIST_FILE ??
       null,
+    runsFile:
+      options.runsFile ??
+      env.NODEUI_RUNS_FILE ??
+      (journalFile(options, env)
+        ? join(dirname(journalFile(options, env) as string), 'nodeui-runs.json')
+        : null),
     persistMaxBytes: positiveInt(
       typeof options.persist === 'object' ? options.persist.maxBytes : undefined,
       DEFAULT_PERSIST_MAX_BYTES,
@@ -417,8 +473,36 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
 
   const timeSeries = new TimeSeriesProvider();
   registry.register(timeSeries);
+  const annotations = new AnnotationStore();
+  timeSeries.annotations = annotations;
   // History must accumulate even when no console tab is open.
   if (config.enabled) timeSeries.start(ctx);
+  const cpuProfile = new CpuProfileProvider();
+  registry.register(cpuProfile);
+
+  const loadGen = new LoadGenProvider({
+    startRun: (name, config) => void timeSeries.startRun(name, config),
+    stopRun: () => timeSeries.stopRun(),
+  });
+  registry.register(loadGen);
+
+  const alerts = new AlertsProvider({ windowSummary: (s) => timeSeries.windowSummary(s) });
+  registry.register(alerts);
+  for (const rule of options.alerts ?? []) alerts.addRule(rule, 'config');
+  alerts.onEvent = (e) => {
+    const verb = e.type === 'fired' ? 'ALERT' : 'resolved';
+    console.warn(`[nodeui] ${verb}: ${e.name} (now ${e.value}, limit ${e.threshold})`);
+    annotations.add(`${e.type === 'fired' ? 'Alert' : 'Resolved'}: ${e.name}`, 'alert', e.atMs);
+  };
+  if (config.enabled) alerts.start();
+  const runStore = config.enabled && config.runsFile ? new RunStore(config.runsFile) : null;
+  if (runStore) {
+    timeSeries.restoreRuns(runStore.load());
+    timeSeries.onRunsChanged = () => runStore.save(timeSeries.snapshotRuns());
+  }
+
+  const routeMetrics = new RouteMetricsProvider();
+  registry.register(routeMetrics);
 
   const logsProvider = new LogsProvider(config.logSize);
   registry.register(logsProvider);
@@ -498,7 +582,10 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   }
 
   // The metrics history samples continuously; the inactivity timer must not stop it.
-  if (config.enabled) pinned.add('timeseries');
+  if (config.enabled) {
+    pinned.add('timeseries');
+    pinned.add('alerts');
+  }
 
   const pluginMeta: Array<{ id: PanelId; title: string }> = [];
   for (const plugin of options.plugins ?? []) {
@@ -622,23 +709,151 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     sendJson(res, 200, { ok: true, data: issued });
   }
 
-  async function takeHeapSnapshot(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  /** Consumes the one-time `x-nodeui-confirm` nonce, or answers 409 and returns false. */
+  function requireConfirmation(req: IncomingMessage, res: ServerResponse): boolean {
     const header = req.headers['x-nodeui-confirm'];
     const nonce = Array.isArray(header) ? header[0] : header;
-    if (typeof nonce !== 'string' || !confirmations.consume(nonce)) {
+    if (typeof nonce === 'string' && confirmations.consume(nonce)) return true;
+    sendJson(res, 409, {
+      ok: false,
+      error: {
+        code: 'confirmation-required',
+        message:
+          'This mutating action needs a fresh confirmation nonce. Issue one via ' +
+          'POST ' +
+          `${path}/api/confirmations` +
+          ' and repeat the request with an x-nodeui-confirm header.',
+      },
+    });
+    return false;
+  }
+
+  /** Starting a load test fires real requests at the app, so it needs a confirmation nonce. */
+  async function handleLoadTestAction(
+    req: IncomingMessage,
+    res: ServerResponse,
+    action: string,
+  ): Promise<void> {
+    try {
+      if (action === 'start') {
+        const body = await readJsonBody(req, REPLAY_BODY_LIMIT);
+        if (!requireConfirmation(req, res)) return;
+        sendJson(res, 200, { ok: true, data: loadGen.startTest(appTarget, body) });
+      } else {
+        sendJson(res, 200, { ok: true, data: loadGen.stopTest() });
+      }
+    } catch (err) {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'loadtest-failed', message: err instanceof Error ? err.message : 'failed' },
+      });
+    }
+  }
+
+  /** Starting a profile is mutating, so it needs a confirmation nonce; stopping is harmless. */
+  async function handleProfileAction(
+    req: IncomingMessage,
+    res: ServerResponse,
+    action: string,
+  ): Promise<void> {
+    try {
+      if (action === 'start') {
+        const body = await readJsonBody(req);
+        if (!requireConfirmation(req, res)) return;
+        sendJson(res, 200, {
+          ok: true,
+          data: await cpuProfile.startProfile(Number(body.seconds)),
+        });
+      } else {
+        sendJson(res, 200, { ok: true, data: await cpuProfile.stopProfile() });
+      }
+    } catch (err) {
       sendJson(res, 409, {
         ok: false,
+        error: { code: 'profile-failed', message: err instanceof Error ? err.message : 'failed' },
+      });
+    }
+  }
+
+  async function handleAnnotationAction(
+    req: IncomingMessage,
+    res: ServerResponse,
+    action: string,
+  ): Promise<void> {
+    try {
+      const body = await readJsonBody(req);
+      if (action === 'add') {
+        const at = Number(body.atMs);
+        sendJson(res, 200, {
+          ok: true,
+          data: annotations.add(
+            String(body.label ?? ''),
+            'note',
+            Number.isFinite(at) && at > 0 ? at : undefined,
+          ),
+        });
+      } else {
+        sendJson(res, 200, { ok: true, data: { removed: annotations.remove(Number(body.id)) } });
+      }
+    } catch (err) {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'bad-request', message: err instanceof Error ? err.message : 'invalid' },
+      });
+    }
+  }
+
+  async function handleAlertAction(
+    req: IncomingMessage,
+    res: ServerResponse,
+    action: string,
+  ): Promise<void> {
+    try {
+      const body = await readJsonBody(req);
+      if (action === 'add') {
+        sendJson(res, 200, { ok: true, data: alerts.addRule(body as unknown as AlertRuleInput) });
+      } else {
+        sendJson(res, 200, { ok: true, data: { removed: alerts.removeRule(Number(body.id)) } });
+      }
+    } catch (err) {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'bad-request', message: err instanceof Error ? err.message : 'invalid' },
+      });
+    }
+  }
+
+  /** Re-sends a captured (and possibly edited) request to the app itself. */
+  async function handleReplay(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    let body: Record<string, unknown>;
+    try {
+      body = await readJsonBody(req, REPLAY_BODY_LIMIT);
+      normalizeReplayRequest(body);
+    } catch (err) {
+      sendJson(res, 400, {
+        ok: false,
         error: {
-          code: 'confirmation-required',
-          message:
-            'This mutating action needs a fresh confirmation nonce. Issue one via ' +
-            'POST ' +
-            `${path}/api/confirmations` +
-            ' and repeat the request with an x-nodeui-confirm header.',
+          code: 'bad-request',
+          message: err instanceof Error ? err.message : 'invalid request',
         },
       });
       return;
     }
+    if (!requireConfirmation(req, res)) return;
+    try {
+      const result = await replayRequest(appTarget, body);
+      sendJson(res, 200, { ok: true, data: result });
+    } catch (err) {
+      const code = err instanceof ReplayError ? err.code : 'replay-failed';
+      sendJson(res, code === 'upstream-error' ? 502 : 400, {
+        ok: false,
+        error: { code, message: err instanceof Error ? err.message : 'replay failed' },
+      });
+    }
+  }
+
+  async function takeHeapSnapshot(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    if (!requireConfirmation(req, res)) return;
     const heapProvider = registry.get('heap-snapshot');
     if (!heapProvider || !('takeSnapshot' in heapProvider)) return notFound(res);
     const result = (await (heapProvider as HeapSnapshotProvider).takeSnapshot(
@@ -647,13 +862,16 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     sendJson(res, result.ok ? 200 : 500, result);
   }
 
-  async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  async function readJsonBody(
+    req: IncomingMessage,
+    limit = 8192,
+  ): Promise<Record<string, unknown>> {
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const chunk of req) {
       const buf = chunk as Buffer;
       size += buf.length;
-      if (size > 8192) throw new Error('request body too large');
+      if (size > limit) throw new Error('request body too large');
       chunks.push(buf);
     }
     if (size === 0) return {};
@@ -668,7 +886,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   ): Promise<void> {
     let body: Record<string, unknown>;
     try {
-      body = await readJsonBody(req);
+      body = await readJsonBody(req, action === 'import' ? RUNS_IMPORT_LIMIT : 8192);
     } catch (err) {
       sendJson(res, 400, {
         ok: false,
@@ -677,6 +895,17 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
           message: err instanceof Error ? err.message : 'invalid JSON body',
         },
       });
+      return;
+    }
+    if (action === 'import') {
+      try {
+        sendJson(res, 200, { ok: true, data: { imported: timeSeries.importRuns(body).length } });
+      } catch (err) {
+        sendJson(res, 400, {
+          ok: false,
+          error: { code: 'bad-request', message: err instanceof Error ? err.message : 'invalid' },
+        });
+      }
       return;
     }
     const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : '';
@@ -705,6 +934,19 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       sendJson(res, 200, { ok: true, data: timeSeries.saveRange(name, fromMs, toMs) });
     } else if (action === 'delete') {
       sendJson(res, 200, { ok: true, data: { deleted: timeSeries.deleteRun(Number(body.id)) } });
+    } else if (action === 'baseline') {
+      const id = body.id === null || body.id === undefined ? null : Number(body.id);
+      if (!timeSeries.setBaseline(id)) {
+        sendJson(res, 404, {
+          ok: false,
+          error: { code: 'not-found', message: 'No saved run has that id' },
+        });
+        return;
+      }
+      sendJson(res, 200, { ok: true, data: { baselineId: id } });
+    } else if (action === 'reset-routes') {
+      routeMetrics.reset();
+      sendJson(res, 200, { ok: true, data: { reset: true } });
     } else {
       notFound(res);
     }
@@ -775,7 +1017,22 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       return handleLive(req, res);
     }
     if (method === 'GET' && apiPath === '/runs') {
-      sendJson(res, 200, { ok: true, data: timeSeries.listRuns() });
+      sendJson(res, 200, {
+        ok: true,
+        data: { ...timeSeries.listRuns(), persisted: runStore !== null },
+      });
+      return;
+    }
+    if (method === 'GET' && apiPath === '/runs/export') {
+      const payload = JSON.stringify(timeSeries.snapshotRuns());
+      res.writeHead(200, {
+        ...SECURITY_HEADERS,
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="nodeui-runs.json"',
+        'Content-Length': Buffer.byteLength(payload),
+        'Cache-Control': 'no-store',
+      });
+      res.end(payload);
       return;
     }
     if (method === 'GET' && apiPath === '/prometheus') {
@@ -803,6 +1060,21 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       }
       if (apiPath === '/heap-snapshot') {
         return takeHeapSnapshot(req, res);
+      }
+      if (apiPath === '/replay') {
+        return handleReplay(req, res);
+      }
+      if (apiPath === '/loadtest/start' || apiPath === '/loadtest/stop') {
+        return handleLoadTestAction(req, res, apiPath.slice('/loadtest/'.length));
+      }
+      if (apiPath === '/cpu-profile/start' || apiPath === '/cpu-profile/stop') {
+        return handleProfileAction(req, res, apiPath.slice('/cpu-profile/'.length));
+      }
+      if (apiPath === '/annotations/add' || apiPath === '/annotations/remove') {
+        return handleAnnotationAction(req, res, apiPath.slice('/annotations/'.length));
+      }
+      if (apiPath === '/alerts/add' || apiPath === '/alerts/remove') {
+        return handleAlertAction(req, res, apiPath.slice('/alerts/'.length));
       }
       if (apiPath.startsWith('/runs/')) {
         return handleRunAction(req, res, apiPath.slice('/runs/'.length));
@@ -898,6 +1170,8 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   }
 
   const readMarks = new WeakMap<object, number>();
+  /** Address the app listens on, learned from its own sockets (never from user input). */
+  let appTarget: ReplayTarget | null = null;
 
   function recordAppRequest(req: IncomingMessage, res: ServerResponse): number {
     const started = process.hrtime.bigint();
@@ -906,6 +1180,13 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     bindRequestId(req, requestId);
     const collectDetail = captureRequestDetail(req, res, config.requestDetail, config.maskSecrets);
     const socket = req.socket;
+    if (socket?.localPort) {
+      const local = socket.localAddress;
+      appTarget = {
+        host: local && isLoopbackAddress(local) ? local : '127.0.0.1',
+        port: socket.localPort,
+      };
+    }
     // Headers are parsed before this hook runs, so count request bytes since the
     // previous response on this keep-alive socket finished.
     const readAtStart = (socket && readMarks.get(socket)) ?? 0;
@@ -931,6 +1212,15 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
           Math.max(0, (socket?.bytesWritten ?? 0) - wroteAtStart),
         );
       }
+      const route = routePatternOf(req);
+      routeMetrics.record(
+        req.method ?? '?',
+        pathnameOf(req),
+        route,
+        res.statusCode,
+        durationMs,
+        Math.max(0, (socket?.bytesWritten ?? 0) - wroteAtStart),
+      );
       requestsProvider.record(
         {
           method: req.method ?? '?',
@@ -939,7 +1229,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
           durationMs,
           timestampMs,
           ip: req.socket.remoteAddress ?? 'unknown',
-          route: routePatternOf(req),
+          route,
           ...collectDetail(),
         },
         requestId,
@@ -991,6 +1281,13 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     setRoutes(source): void {
       ctx.store['routes-source'] = source;
     },
+    annotate(label: string): void {
+      try {
+        annotations.add(label, 'app');
+      } catch {
+        // an empty label is ignored
+      }
+    },
     mark(name: string): void {
       startupTracker.mark(name);
     },
@@ -1026,6 +1323,10 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     shutdown(): void {
       errorsProvider.detach();
       timeSeries.stop();
+      alerts.stop();
+      cpuProfile.stop();
+      loadGen.stop();
+      runStore?.close();
       persistence?.close();
       exporter?.close();
       for (const id of pinned) registry.get(id)?.stop?.(ctx);

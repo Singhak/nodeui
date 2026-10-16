@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getPanel, saveRun } from '../api';
+import { addAnnotation, getPanel, saveRun } from '../api';
+import { Heatmap } from '../charts/Heatmap';
 import { LineChart, type ChartSeries } from '../charts/LineChart';
 import { Card, EmptyState, ErrorState, Skeleton, ViewHeader } from '../components/common';
 import { Kpi } from '../components/Kpi';
@@ -55,13 +56,14 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
   const [follow, setFollow] = useState(true);
   const [cursorT, setCursorT] = useState<number | null>(null);
   const [saveName, setSaveName] = useState('');
+  const [markLabel, setMarkLabel] = useState('');
   const [saved, setSaved] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const rangeMs = RANGES.find((r) => r.id === rangeId)?.ms ?? 15 * 60_000;
   const query = zoom
-    ? `/timeseries?from=${Math.floor(zoom.from)}&to=${Math.ceil(zoom.to)}&points=300`
-    : `/timeseries?range=${rangeMs}&points=300`;
+    ? `/timeseries?from=${Math.floor(zoom.from)}&to=${Math.ceil(zoom.to)}&points=300&heatmap=1`
+    : `/timeseries?range=${rangeMs}&points=300&heatmap=1`;
 
   const live = follow && !zoom && !paused;
   const poll = usePolledPanel<TimeSeriesData>(
@@ -138,7 +140,13 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
     [points, stepSec],
   );
 
+  const markers = useMemo(
+    () => (data?.annotations ?? []).map((a) => ({ t: a.atMs, label: a.label, kind: a.kind })),
+    [data],
+  );
+
   const shared = {
+    markers,
     cursorT,
     onCursorT: setCursorT,
     onBrush: (t0: number, t1: number) => {
@@ -147,8 +155,22 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
     },
   };
 
+  const trend = data?.heapTrend;
   const spanLabel = data ? formatSpan(data.toMs - data.fromMs) : '';
   const errRate = sum && sum.requests > 0 ? sum.errors5xx / sum.requests : 0;
+
+  const onMark = async (): Promise<void> => {
+    const label = markLabel.trim();
+    if (!label) return;
+    setSaveError(null);
+    try {
+      await addAnnotation(label);
+      setMarkLabel('');
+      refetch();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to add marker');
+    }
+  };
 
   const onSave = async (): Promise<void> => {
     if (!data) return;
@@ -225,6 +247,27 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
             Recording “{data.recording.name}”
           </a>
         ) : null}
+        <input
+          className="input"
+          type="text"
+          placeholder="Mark now: deployed, cache on…"
+          aria-label="Marker label"
+          value={markLabel}
+          onChange={(e) => setMarkLabel(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void onMark();
+          }}
+          style={{ width: 200 }}
+        />
+        <button
+          type="button"
+          className="btn btn-sm"
+          disabled={markLabel.trim() === ''}
+          onClick={() => void onMark()}
+          title="Drop a marker on every chart at this moment"
+        >
+          Add marker
+        </button>
         <input
           className="input"
           type="text"
@@ -305,6 +348,25 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
                     : 'Healthy'
               }
             />
+            {trend ? (
+              <Kpi
+                label="Heap trend"
+                value={
+                  trend.windowMs >= 5 * 60_000
+                    ? `${trend.slopeMbPerMin >= 0 ? '+' : ''}${trend.slopeMbPerMin.toFixed(1)}`
+                    : '—'
+                }
+                unit={trend.windowMs >= 5 * 60_000 ? 'MB/min' : undefined}
+                caption={
+                  trend.windowMs >= 5 * 60_000
+                    ? `floor ${trend.floorStartMb.toFixed(0)} → ${trend.floorEndMb.toFixed(0)} MB`
+                    : trend.reason
+                }
+                tone={trend.suspect ? 'warn' : trend.windowMs >= 5 * 60_000 ? 'good' : 'neutral'}
+                toneLabel={trend.suspect ? 'Possible leak' : 'Stable'}
+                testId="heap-trend"
+              />
+            ) : null}
           </div>
           <div className="dash-grid">
             <Card title="Throughput" subtitle="requests per second, with 5xx and 4xx">
@@ -327,6 +389,15 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
                 {...shared}
               />
             </Card>
+            {data.heatmap ? (
+              <Card
+                className="span-2"
+                title="Latency heatmap"
+                subtitle="every request, by time and latency band (log scale); brighter means more requests"
+              >
+                <Heatmap heatmap={data.heatmap} />
+              </Card>
+            ) : null}
             <Card title="Concurrency" subtitle="peak requests in flight">
               <LineChart
                 title="In-flight requests"

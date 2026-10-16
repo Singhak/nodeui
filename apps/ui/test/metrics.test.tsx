@@ -84,6 +84,7 @@ const series: TimeSeriesData = {
   summary: summary(),
   totals: { requests: 5000, errors5xx: 4, errors4xx: 0 },
   recording: null,
+  annotations: [{ id: 1, atMs: NOW + 2000, label: 'deployed v2', kind: 'app' }],
 };
 
 let runsPayload: { active: unknown; runs: BenchRun[] };
@@ -95,6 +96,7 @@ function stub(): ReturnType<typeof vi.fn> {
   const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes('/api/timeseries')) return json({ ok: true, data: series });
+    if (url.includes('/api/annotations/')) return json({ ok: true, data: { id: 2 } });
     if (url.endsWith('/api/runs')) return json({ ok: true, data: runsPayload });
     if (url.includes('/api/runs/')) return json({ ok: true, data: { deleted: true } });
     return base(input, init);
@@ -142,6 +144,27 @@ describe('Metrics view', () => {
     }
     expect(screen.getAllByRole('group', { name: 'Time range' }).length).toBeGreaterThan(0);
     expect(screen.getByText('5,000 since start')).toBeInTheDocument();
+  });
+
+  it('draws annotation markers on the charts and adds a new one', async () => {
+    const fn = stub();
+    const { container } = render(<App />);
+    await waitFor(() => expect(screen.getByText('Event loop lag')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(container.querySelectorAll('.marker-app').length).toBeGreaterThan(0),
+    );
+    expect(container.querySelector('.marker-app title')?.textContent).toContain('deployed v2');
+    fireEvent.change(screen.getByLabelText('Marker label'), { target: { value: 'cache on' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add marker' }));
+    await waitFor(() =>
+      expect(
+        fn.mock.calls.some(
+          (c) =>
+            String(c[0]).endsWith('/annotations/add') &&
+            String((c[1] as RequestInit).body).includes('"label":"cache on"'),
+        ),
+      ).toBe(true),
+    );
   });
 
   it('switches range and requests that window', async () => {

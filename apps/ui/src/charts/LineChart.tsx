@@ -10,6 +10,13 @@ import {
 import { formatClock, formatSpan } from '../format';
 import type { Pt } from '../telemetry';
 
+/** A vertical marker on the time axis (deploy, note, load-test boundary, alert). */
+export interface ChartMarker {
+  t: number;
+  label: string;
+  kind: 'note' | 'app' | 'run' | 'alert';
+}
+
 export interface ChartSeries {
   id: string;
   name: string;
@@ -88,6 +95,7 @@ export function LineChart({
   onCursorT,
   onBrush,
   timeFormat,
+  markers,
 }: {
   series: ChartSeries[];
   title: string;
@@ -108,6 +116,8 @@ export function LineChart({
   onBrush?: (t0: number, t1: number) => void;
   /** X-axis label formatter; defaults to wall-clock time. */
   timeFormat?: (t: number) => string;
+  /** Vertical markers drawn at their timestamps (those outside the visible range are skipped). */
+  markers?: ChartMarker[];
 }) {
   const clock = timeFormat ?? formatClock;
   const [wrapRef, width] = useWidth<HTMLDivElement>();
@@ -359,6 +369,16 @@ export function LineChart({
               style={onBrush ? { cursor: 'crosshair' } : undefined}
             />
           ) : null}
+          {(markers ?? [])
+            .filter((m) => m.t >= dom.t0 && m.t <= dom.t1)
+            .map((m, i) => (
+              <g key={`${m.t}-${i}`} className={`marker marker-${m.kind}`}>
+                <line x1={x(m.t)} x2={x(m.t)} y1={M.t} y2={M.t + plotH} pointerEvents="none" />
+                <path d={`M${x(m.t) - 5},${M.t} L${x(m.t) + 5},${M.t} L${x(m.t)},${M.t + 8}Z`}>
+                  <title>{`${clock(m.t)} · ${m.label}`}</title>
+                </path>
+              </g>
+            ))}
           {brush ? (
             <rect
               x={M.l + Math.min(brush.a, brush.b)}

@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { getConfig, isUnauthorized, onUnauthorized } from './api';
+import { getConfig, getPanel, isUnauthorized, onUnauthorized } from './api';
 import { StatusPill } from './components/badges';
 import { EmptyState, ErrorState, Skeleton } from './components/common';
 import { hrefFor, useHashRoute } from './router';
+import { usePolledPanel } from './hooks';
 import { TelemetryProvider, useTelemetry } from './telemetry';
 import { useTheme } from './theme';
-import type { ConfigData } from './types';
+import type { AlertsData, ConfigData } from './types';
 import { GenericView } from './views/GenericView';
 import { ErrorsView } from './views/ErrorsView';
 import { EnvView, LogsView, RoutesView } from './views/ListViews';
 import { OutgoingView } from './views/OutgoingView';
+import { ProfilerView } from './views/ProfilerView';
+import { AlertsView } from './views/AlertsView';
+import { EndpointsView } from './views/EndpointsView';
 import { MetricsView } from './views/MetricsView';
 import { Overview } from './views/Overview';
 import { QueriesView } from './views/QueriesView';
@@ -42,6 +46,9 @@ const BUILT_IN_IDS = [
   'errors',
   'queries',
   'timeseries',
+  'routemetrics',
+  'alerts',
+  'cpu-profile',
 ];
 
 export function buildNav(config: ConfigData | null): NavItem[] {
@@ -64,6 +71,33 @@ export function buildNav(config: ConfigData | null): NavItem[] {
       icon: '⏺',
       group: 'main',
       segments: ['runs'],
+    });
+  }
+  if (has('cpu-profile')) {
+    items.push({
+      id: 'profiler',
+      title: 'Profiler',
+      icon: '▥',
+      group: 'main',
+      segments: ['profiler'],
+    });
+  }
+  if (has('alerts')) {
+    items.push({
+      id: 'alerts',
+      title: 'Alerts',
+      icon: '◬',
+      group: 'main',
+      segments: ['alerts'],
+    });
+  }
+  if (has('routemetrics')) {
+    items.push({
+      id: 'endpoints',
+      title: 'Endpoints',
+      icon: '⑃',
+      group: 'main',
+      segments: ['endpoints'],
     });
   }
   if (has('requests'))
@@ -233,6 +267,39 @@ function Topbar({ config }: { config: ConfigData }) {
   );
 }
 
+/** Banner (and tab-title marker) shown while any alert rule is firing. */
+function AlertBanner({ intervalMs }: { intervalMs: number }) {
+  const poll = usePolledPanel<AlertsData>(
+    'alerts',
+    () => getPanel<AlertsData>('/alerts'),
+    Math.min(intervalMs, 3000),
+  );
+  const firing = (poll.data?.rules ?? []).filter((r) => r.state === 'firing');
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+ alerts?\) /, '');
+    document.title =
+      firing.length > 0 ? `(${firing.length} alert${firing.length > 1 ? 's' : ''}) ${base}` : base;
+    return () => {
+      document.title = base;
+    };
+  }, [firing.length]);
+  if (firing.length === 0) return null;
+  return (
+    <div className="alert-banner" role="alert">
+      <span aria-hidden="true">✕</span>{' '}
+      <strong>
+        {firing.length} alert{firing.length > 1 ? 's' : ''} firing:
+      </strong>{' '}
+      {firing
+        .slice(0, 3)
+        .map((r) => `${r.name} (now ${r.value ?? '?'})`)
+        .join(', ')}
+      {firing.length > 3 ? `, +${firing.length - 3} more` : ''}{' '}
+      <a href={hrefFor('alerts')}>View alerts</a>
+    </div>
+  );
+}
+
 function Shell({ config }: { config: ConfigData }) {
   const { segments } = useHashRoute();
   const items = buildNav(config);
@@ -264,6 +331,9 @@ function Shell({ config }: { config: ConfigData }) {
   else if (view === 'requests') body = <RequestsView />;
   else if (view === 'metrics') body = <MetricsView intervalMs={interval} />;
   else if (view === 'runs') body = <RunsView intervalMs={interval} />;
+  else if (view === 'endpoints') body = <EndpointsView intervalMs={interval} />;
+  else if (view === 'alerts') body = <AlertsView intervalMs={interval} />;
+  else if (view === 'profiler') body = <ProfilerView intervalMs={interval} />;
   else if (view === 'outgoing') body = <OutgoingView intervalMs={interval} />;
   else if (view === 'queries') body = <QueriesView intervalMs={interval} />;
   else if (view === 'errors') body = <ErrorsView intervalMs={interval} />;
@@ -295,6 +365,7 @@ function Shell({ config }: { config: ConfigData }) {
       <Sidebar items={items} activeId={activeId} />
       <div className="main-col">
         <Topbar config={config} />
+        {panels.includes('alerts') ? <AlertBanner intervalMs={interval} /> : null}
         <main className="view" id="main" tabIndex={-1} ref={mainRef}>
           {body}
         </main>

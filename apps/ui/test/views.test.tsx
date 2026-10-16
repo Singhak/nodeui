@@ -195,3 +195,49 @@ describe('GenericData', () => {
     expect(screen.getByText('42')).toBeInTheDocument();
   });
 });
+
+describe('Queries by statement', () => {
+  beforeEach(() => resetEnv('#/queries'));
+
+  const stmt = (over: Record<string, unknown>) => ({
+    key: 'select * from users where id = ?',
+    sample: 'SELECT * FROM users WHERE id = 1',
+    system: 'pg',
+    count: 20,
+    errors: 0,
+    totalMs: 200,
+    avgMs: 10,
+    p95Ms: 14,
+    maxMs: 30,
+    nPlusOneRequests: 0,
+    maxRepeats: 1,
+    lastMs: 1,
+    ...over,
+  });
+
+  it('aggregates by statement with share of total time and flags', async () => {
+    payloads['/queries'] = {
+      ...(payloads['/queries'] as object),
+      statements: [
+        stmt({ key: 'a', sample: 'SELECT * FROM orders WHERE total > 5', totalMs: 600, count: 2 }),
+        stmt({ nPlusOneRequests: 1, maxRepeats: 20, errors: 2 }),
+      ],
+    };
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'By statement' }));
+    const table = await screen.findByRole('table', { name: 'Statements by total time' });
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(rows[0]).toHaveTextContent('FROM orders');
+    expect(rows[0]).toHaveTextContent('75%');
+    expect(rows[1]).toHaveTextContent('N+1 ×20');
+    expect(rows[1]).toHaveTextContent('2 failed');
+    fireEvent.click(screen.getByRole('button', { name: /N\+1 suspects/ }));
+    await waitFor(() => expect(screen.queryByText(/FROM orders/)).not.toBeInTheDocument());
+  });
+
+  it('tolerates an older server without statements', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'By statement' }));
+    expect(await screen.findByText('No statements to show')).toBeInTheDocument();
+  });
+});

@@ -15,7 +15,21 @@ import {
 import { DataTable, type Column } from '../components/DataTable';
 import { Kpi } from '../components/Kpi';
 import { formatClock, formatDuration } from '../format';
+import { toAutocannon, toFetch } from '../snippets';
 import { useTelemetry } from '../telemetry';
+import { parseHashQuery, replaceHashQuery } from '../router';
+import {
+  deleteView,
+  EMPTY_FILTERS,
+  filtersToParams,
+  loadViews,
+  paramsToFilters,
+  saveView,
+  type RequestFilters,
+  type SavedView,
+} from '../requestFilters';
+import { ReplayPanel } from './ReplayPanel';
+import { Waterfall, type WaterfallItem } from './Waterfall';
 import type {
   OutgoingData,
   OutgoingRequestEntry,
@@ -98,9 +112,11 @@ export function filterRequests(
   classes: ReadonlySet<string>,
   method: string,
   query: string,
+  minMs = 0,
 ): RequestEntry[] {
   const q = query.trim().toLowerCase();
   return entries.filter((e) => {
+    if (minMs > 0 && e.durationMs < minMs) return false;
     if (classes.size > 0 && !classes.has(`${Math.floor(e.status / 100)}xx`)) return false;
     if (method !== 'all' && e.method !== method) return false;
     if (q && !`${e.method} ${e.path} ${e.status} ${e.ip}`.toLowerCase().includes(q)) return false;
@@ -163,9 +179,15 @@ export function RequestsView() {
     full,
   );
   const data = full && fullPoll.data ? fullPoll.data : t.requests;
-  const [classes, setClasses] = useState<ReadonlySet<string>>(new Set());
-  const [method, setMethod] = useState('all');
-  const [query, setQuery] = useState('');
+  // Filters live in the URL (`#/requests?status=5xx&min=100`) so a view can be shared.
+  const initial = useMemo(() => paramsToFilters(parseHashQuery(window.location.hash)), []);
+  const [classes, setClasses] = useState<ReadonlySet<string>>(initial.classes);
+  const [method, setMethod] = useState(initial.method);
+  const [query, setQuery] = useState(initial.query);
+  const [minMs, setMinMs] = useState(initial.minMs);
+  const [views, setViews] = useState<SavedView[]>(() => loadViews());
+  const [viewName, setViewName] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
   const [selected, setSelected] = useState<RequestEntry | null>(null);
 
   const methods = useMemo(
@@ -173,9 +195,29 @@ export function RequestsView() {
     [data],
   );
   const rows = useMemo(
-    () => filterRequests(data?.entries ?? [], classes, method, query),
-    [data, classes, method, query],
+    () => filterRequests(data?.entries ?? [], classes, method, query, minMs),
+    [data, classes, method, query, minMs],
   );
+
+  useEffect(() => {
+    replaceHashQuery(filtersToParams({ classes, method, query, minMs }));
+  }, [classes, method, query, minMs]);
+
+  const applyFilters = (f: RequestFilters): void => {
+    setClasses(f.classes);
+    setMethod(f.method);
+    setQuery(f.query);
+    setMinMs(f.minMs);
+  };
+  const copyLink = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 1500);
+    } catch {
+      setLinkCopied(false);
+    }
+  };
 
   const toggleClass = (c: string): void =>
     setClasses((prev) => {
@@ -186,7 +228,7 @@ export function RequestsView() {
     });
 
   const sum = data?.summary;
-  const filtered = classes.size > 0 || method !== 'all' || query.trim() !== '';
+  const filtered = classes.size > 0 || method !== 'all' || query.trim() !== '' || minMs > 0;
 
   return (
     <>
@@ -273,6 +315,19 @@ export function RequestsView() {
                 onChange={(e) => setQuery(e.target.value)}
               />
               <label className="field">
+                <span className="sr-only">Minimum duration in milliseconds</span>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  placeholder="min ms"
+                  aria-label="Minimum duration (ms)"
+                  value={minMs > 0 ? minMs : ''}
+                  onChange={(e) => setMinMs(Math.max(0, Number(e.target.value) || 0))}
+                  style={{ width: 96 }}
+                />
+              </label>
+              <label className="field">
                 <input
                   type="checkbox"
                   checked={full}
@@ -290,6 +345,80 @@ export function RequestsView() {
                   ? ` · buffer keeps the last ${data.capacity} (raise requestLogSize)`
                   : ''}
               </span>
+            </div>
+            <div className="toolbar" role="group" aria-label="Saved views">
+              <select
+                className="input"
+                aria-label="Saved views"
+                value=""
+                onChange={(e) => {
+                  const v = views.find((x) => x.name === e.target.value);
+                  if (v) applyFilters(paramsToFilters(new URLSearchParams(v.params)));
+                }}
+              >
+                <option value="">
+                  {views.length > 0 ? 'Apply saved view…' : 'No saved views'}
+                </option>
+                {views.map((v) => (
+                  <option key={v.name} value={v.name}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="input"
+                type="text"
+                placeholder="Name this view"
+                aria-label="View name"
+                value={viewName}
+                onChange={(e) => setViewName(e.target.value)}
+                style={{ width: 160 }}
+              />
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={viewName.trim() === '' || !filtered}
+                onClick={() => {
+                  setViews((prev) =>
+                    saveView(prev, {
+                      name: viewName.trim().slice(0, 40),
+                      params: filtersToParams({ classes, method, query, minMs }).toString(),
+                    }),
+                  );
+                  setViewName('');
+                }}
+              >
+                Save view
+              </button>
+              {views.length > 0 ? (
+                <select
+                  className="input"
+                  aria-label="Delete a saved view"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) setViews((prev) => deleteView(prev, e.target.value));
+                  }}
+                >
+                  <option value="">Delete view…</option>
+                  {views.map((v) => (
+                    <option key={v.name} value={v.name}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <button type="button" className="btn btn-sm" onClick={() => void copyLink()}>
+                {linkCopied ? 'Link copied' : 'Copy link'}
+              </button>
+              {filtered ? (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => applyFilters(EMPTY_FILTERS)}
+                >
+                  Clear filters
+                </button>
+              ) : null}
             </div>
             {!data ? (
               <Skeleton lines={6} label="Loading requests" />
@@ -322,14 +451,7 @@ export function RequestsView() {
   );
 }
 
-interface TimelineItem {
-  key: string;
-  at: number;
-  kind: 'outgoing' | 'log' | 'query';
-  label: string;
-  detail: string;
-  failed: boolean;
-}
+type TimelineItem = WaterfallItem;
 
 /** Outgoing calls and log lines attributed to the request, ordered by time. */
 function buildTimeline(
@@ -344,6 +466,7 @@ function buildTimeline(
     items.push({
       key: `q${q.id}`,
       at: q.timestampMs,
+      durationMs: q.durationMs,
       kind: 'query',
       label: q.sql,
       detail: `${q.system} \u00b7 ${q.error ?? formatDuration(q.durationMs)}${q.nPlusOne ? ' \u00b7 N+1' : ''}`,
@@ -355,6 +478,7 @@ function buildTimeline(
     items.push({
       key: `o${o.id}`,
       at: o.timestampMs,
+      durationMs: o.durationMs,
       kind: 'outgoing',
       label: `${o.method} ${o.url}`,
       detail: `${o.error ?? o.status ?? '—'} · ${formatDuration(o.durationMs)}`,
@@ -366,6 +490,7 @@ function buildTimeline(
     items.push({
       key: `l${i}`,
       at: l.timestamp,
+      durationMs: 0,
       kind: 'log',
       label: l.message,
       detail: l.level,
@@ -406,16 +531,7 @@ function RequestTimeline({ entry }: { entry: RequestEntry }) {
           while their panels are active.
         </p>
       ) : (
-        <ol className="timeline">
-          {items.map((i) => (
-            <li key={i.key} className={i.failed ? 'row-failed' : undefined}>
-              <span className="mono nowrap">+{Math.max(0, i.at - entry.timestampMs)} ms</span>{' '}
-              <strong>{i.kind === 'outgoing' ? 'out' : i.kind === 'query' ? 'sql' : 'log'}</strong>{' '}
-              <span className="mono wrap-anywhere">{i.label}</span>{' '}
-              <span className="muted-text">{i.detail}</span>
-            </li>
-          ))}
-        </ol>
+        <Waterfall items={items} startMs={entry.timestampMs} durationMs={entry.durationMs} />
       )}
     </section>
   );
@@ -423,9 +539,10 @@ function RequestTimeline({ entry }: { entry: RequestEntry }) {
 
 function RequestDrawer({ entry, onClose }: { entry: RequestEntry; onClose: () => void }) {
   const [copied, setCopied] = useState<'idle' | 'ok' | 'fail'>('idle');
-  const copy = async (): Promise<void> => {
+  const [replaying, setReplaying] = useState(false);
+  const copy = async (build: (e: RequestEntry, origin: string) => string): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(toCurl(entry, window.location.origin));
+      await navigator.clipboard.writeText(build(entry, window.location.origin));
       setCopied('ok');
     } catch {
       setCopied('fail');
@@ -473,8 +590,22 @@ function RequestDrawer({ entry, onClose }: { entry: RequestEntry; onClose: () =>
         </div>
       </dl>
       <div className="drawer-actions">
-        <button type="button" className="btn" onClick={() => void copy()}>
+        <button type="button" className="btn" onClick={() => void copy(toCurl)}>
           Copy as curl
+        </button>
+        <button type="button" className="btn" onClick={() => void copy(toFetch)}>
+          Copy as fetch
+        </button>
+        <button type="button" className="btn" onClick={() => void copy(toAutocannon)}>
+          Copy as autocannon
+        </button>
+        <button
+          type="button"
+          className="btn"
+          aria-pressed={replaying}
+          onClick={() => setReplaying((v) => !v)}
+        >
+          Replay…
         </button>
         <span className="muted-text" role="status">
           {copied === 'ok'
@@ -484,6 +615,7 @@ function RequestDrawer({ entry, onClose }: { entry: RequestEntry; onClose: () =>
               : ''}
         </span>
       </div>
+      {replaying ? <ReplayPanel entry={entry} /> : null}
       <pre className="curl mono">{toCurl(entry, window.location.origin)}</pre>
       {entry.requestBodyTruncated ? (
         <p className="muted-text">Request body was truncated, so it is left out of the curl.</p>

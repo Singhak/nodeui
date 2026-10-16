@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { currentRequestId } from '../context';
 import { RingBuffer } from '../ring-buffer';
-import type { NodeUIProvider, QueriesData, QueryEntry } from '../types';
+import type { NodeUIProvider, QueriesData, QueryEntry, QueryStatement } from '../types';
 
 const RESPONSE_PAGE_SIZE = 100;
 const MAX_SQL_CHARS = 2000;
@@ -25,6 +25,9 @@ const defaultLoader: DriverLoader = (name) => {
 
 const recorders = new Set<Recorder>();
 const restorers: Array<() => void> = [];
+
+const MAX_STATEMENTS = 50;
+const MAX_STATEMENT_SAMPLE = 400;
 
 /** Collapses literals so repeated statements compare equal. */
 export function normalizeSql(sql: string): string {
@@ -218,6 +221,65 @@ export class QueriesProvider implements NodeUIProvider<QueriesData> {
     }
   }
 
+  /** Aggregates the buffer by normalized statement (the "what is my database busy with" view). */
+  private statements(all: readonly QueryEntry[]): QueryStatement[] {
+    interface Group {
+      sample: string;
+      system: string;
+      ms: number[];
+      errors: number;
+      lastMs: number;
+      perRequest: Map<number, number>;
+    }
+    const groups = new Map<string, Group>();
+    for (const e of all) {
+      const key = normalizeSql(e.sql);
+      let g = groups.get(key);
+      if (!g) {
+        g = {
+          sample: e.sql.slice(0, MAX_STATEMENT_SAMPLE),
+          system: e.system,
+          ms: [],
+          errors: 0,
+          lastMs: 0,
+          perRequest: new Map(),
+        };
+        groups.set(key, g);
+      }
+      g.ms.push(e.durationMs);
+      if (e.error) g.errors += 1;
+      if (e.timestampMs > g.lastMs) g.lastMs = e.timestampMs;
+      if (e.requestId !== undefined) {
+        g.perRequest.set(e.requestId, (g.perRequest.get(e.requestId) ?? 0) + 1);
+      }
+    }
+    const round = (n: number): number => Math.round(n * 100) / 100;
+    return [...groups.entries()]
+      .map(([key, g]) => {
+        const sorted = [...g.ms].sort((a, b) => a - b);
+        const total = g.ms.reduce((a, b) => a + b, 0);
+        const repeats = [...g.perRequest.values()];
+        return {
+          key: key.slice(0, MAX_STATEMENT_SAMPLE),
+          sample: g.sample,
+          system: g.system,
+          count: g.ms.length,
+          errors: g.errors,
+          totalMs: round(total),
+          avgMs: round(total / g.ms.length),
+          p95Ms: round(
+            sorted[Math.min(sorted.length - 1, Math.ceil(0.95 * sorted.length) - 1)] ?? 0,
+          ),
+          maxMs: round(sorted[sorted.length - 1] ?? 0),
+          nPlusOneRequests: repeats.filter((n) => n >= N_PLUS_ONE_THRESHOLD).length,
+          maxRepeats: repeats.reduce((m, n) => Math.max(m, n), 0),
+          lastMs: g.lastMs,
+        };
+      })
+      .sort((a, b) => b.totalMs - a.totalMs)
+      .slice(0, MAX_STATEMENTS);
+  }
+
   get(): { ok: true; data: QueriesData } {
     const all = this.buffer.toArray();
     // N+1: the same normalized statement repeated within one request.
@@ -243,6 +305,7 @@ export class QueriesProvider implements NodeUIProvider<QueriesData> {
     return {
       ok: true,
       data: {
+        statements: this.statements(all),
         total: this.nextId - 1,
         failed: this.failed,
         slow: entries.filter((e) => e.slow).length,

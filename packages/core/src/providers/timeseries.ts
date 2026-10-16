@@ -3,11 +3,16 @@ import {
   PerformanceObserver,
   type IntervalHistogram,
 } from 'node:perf_hooks';
+import type { AnnotationStore } from '../annotations';
+import { assessHeapTrend } from '../heap-trend';
 import type {
   BenchRun,
   BenchRunSummary,
   NodeUIProvider,
+  LatencyHeatmap,
+  LoadTestConfig,
   ProviderContext,
+  RunsFile,
   TimeSeriesData,
   TimeSeriesPoint,
 } from '../types';
@@ -167,6 +172,84 @@ export class Acc {
   }
 }
 
+/** Turns per-window histograms into a trimmed time x latency grid. */
+function buildHeatmap(
+  heat: Array<{ t: number; hist: Float64Array }>,
+  stepMs: number,
+): LatencyHeatmap {
+  let lo = HIST_BUCKETS;
+  let hi = -1;
+  for (const w of heat) {
+    for (let i = 0; i < HIST_BUCKETS; i += 1) {
+      if ((w.hist[i] as number) > 0) {
+        if (i < lo) lo = i;
+        if (i > hi) hi = i;
+      }
+    }
+  }
+  if (hi < 0) return { times: [], rowUpperMs: [], cells: [], stepMs };
+  const rowUpperMs: number[] = [];
+  for (let i = lo; i <= hi; i += 1) rowUpperMs.push(round(bucketUpperMs(i), 3));
+  return {
+    times: heat.map((w) => w.t),
+    rowUpperMs,
+    cells: heat.map((w) => Array.from(w.hist.subarray(lo, hi + 1))),
+    stepMs,
+  };
+}
+
+const SUMMARY_KEYS = [
+  'durationSec',
+  'requests',
+  'errors5xx',
+  'errors4xx',
+  'avgRps',
+  'peakRps',
+  'p50',
+  'p90',
+  'p95',
+  'p99',
+  'maxMs',
+  'avgMs',
+  'bytesIn',
+  'bytesOut',
+  'mbPerSec',
+  'inflightMax',
+  'loopP50',
+  'loopP99',
+  'loopMax',
+  'heapPeak',
+  'rssPeak',
+  'cpuAvg',
+  'cpuPeak',
+  'gcMs',
+  'pointCount',
+] as const;
+
+/** Structural check for runs read from disk or uploaded by the user. */
+export function isBenchRun(value: unknown): value is BenchRun {
+  if (typeof value !== 'object' || value === null) return false;
+  const r = value as Record<string, unknown>;
+  if (
+    !Number.isInteger(r.id) ||
+    typeof r.name !== 'string' ||
+    !Number.isFinite(r.startMs) ||
+    !Number.isFinite(r.endMs)
+  ) {
+    return false;
+  }
+  const summary = r.summary as Record<string, unknown> | null;
+  if (typeof summary !== 'object' || summary === null) return false;
+  if (!SUMMARY_KEYS.every((k) => Number.isFinite(summary[k]))) return false;
+  return (
+    Array.isArray(r.points) &&
+    r.points.length <= 500 &&
+    r.points.every(
+      (p) => typeof p === 'object' && p !== null && Number.isFinite((p as { t?: unknown }).t),
+    )
+  );
+}
+
 function round(n: number, digits = 2): number {
   const f = 10 ** digits;
   return Math.round(n * f) / f;
@@ -214,6 +297,8 @@ export interface TimeSeriesQuery {
   fromMs: number;
   toMs: number;
   maxPoints: number;
+  /** Also return the per-window latency histograms (for the heatmap). */
+  heat?: boolean;
 }
 
 /**
@@ -251,6 +336,12 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
   private readonly runs: BenchRun[] = [];
   private activeRun: { id: number; name: string; startMs: number } | null = null;
   private nextRunId = 1;
+  private baselineId: number | null = null;
+  private activeLoadTest: LoadTestConfig | null = null;
+  /** Called after any change to saved runs (persistence hook). */
+  onRunsChanged?: () => void;
+  /** Where run boundaries are marked; assigned by the server. */
+  annotations?: AnnotationStore;
 
   constructor(options: TimeSeriesOptions = {}) {
     this.now = options.nowMs ?? Date.now;
@@ -388,7 +479,12 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
   // ---- queries -------------------------------------------------------------
 
   /** Aggregates a time range into `maxPoints` (or fewer) evenly sized windows. */
-  query(q: TimeSeriesQuery): { stepMs: number; points: TimeSeriesPoint[]; total: Acc } {
+  query(q: TimeSeriesQuery): {
+    stepMs: number;
+    points: TimeSeriesPoint[];
+    total: Acc;
+    heat: Array<{ t: number; hist: Float64Array }>;
+  } {
     const nowSec = Math.floor(this.now() / 1000);
     const fromSec = Math.floor(q.fromMs / 1000);
     const toSec = Math.min(Math.floor(q.toMs / 1000), nowSec);
@@ -403,11 +499,13 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
 
     const total = new Acc();
     const points: TimeSeriesPoint[] = [];
+    const heat: Array<{ t: number; hist: Float64Array }> = [];
     let cur: Acc | null = null;
     let curStart = -1;
     const flush = (): void => {
       if (cur && cur.slots > 0) {
         points.push(toPoint(curStart * 1000, cur.slots * tierSeconds, cur));
+        if (q.heat) heat.push({ t: curStart * 1000, hist: cur.hist });
       }
     };
 
@@ -426,7 +524,7 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
       total.add(slot, tierSeconds);
     }
     flush();
-    return { stepMs: stepSeconds * 1000, points, total };
+    return { stepMs: stepSeconds * 1000, points, total, heat };
   }
 
   // ---- runs ----------------------------------------------------------------
@@ -482,12 +580,17 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
   private addRun(run: BenchRun): BenchRun {
     this.runs.push(run);
     if (this.runs.length > MAX_RUNS) this.runs.splice(0, this.runs.length - MAX_RUNS);
+    if (this.baselineId !== null && !this.runs.some((r) => r.id === this.baselineId)) {
+      this.baselineId = null;
+    }
+    this.onRunsChanged?.();
     return run;
   }
 
   /** Starts recording a named run; any run already recording is stopped first. */
-  startRun(name: string): { id: number; name: string; startMs: number } {
+  startRun(name: string, loadTest?: LoadTestConfig): { id: number; name: string; startMs: number } {
     if (this.activeRun) this.stopRun();
+    this.activeLoadTest = loadTest ?? null;
     this.tick();
     this.activeRun = {
       id: this.nextRunId,
@@ -495,6 +598,7 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
       startMs: this.now(),
     };
     this.nextRunId += 1;
+    this.annotations?.add(`Run started: ${this.activeRun.name}`, 'run', this.activeRun.startMs);
     return this.activeRun;
   }
 
@@ -503,7 +607,11 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
     if (!active) return null;
     this.activeRun = null;
     this.tick();
-    return this.addRun(this.buildRun(active.id, active.name, active.startMs, this.now()));
+    this.annotations?.add(`Run stopped: ${active.name}`, 'run');
+    const run = this.buildRun(active.id, active.name, active.startMs, this.now());
+    if (this.activeLoadTest) run.loadTest = this.activeLoadTest;
+    this.activeLoadTest = null;
+    return this.addRun(run);
   }
 
   /** Saves an already-recorded time range as a run (retroactive capture). */
@@ -515,15 +623,80 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
     );
   }
 
+  /** Summary of the last `seconds` seconds (alerts and the CLI check read this). */
+  windowSummary(seconds: number): BenchRunSummary {
+    const toMs = this.now();
+    const fromMs = toMs - seconds * 1000;
+    const { total, points } = this.query({ fromMs, toMs, maxPoints: 100000 });
+    return this.summarizeAcc(total, fromMs, toMs, points.length);
+  }
+
   deleteRun(id: number): boolean {
     const i = this.runs.findIndex((r) => r.id === id);
     if (i < 0) return false;
     this.runs.splice(i, 1);
+    if (this.baselineId === id) this.baselineId = null;
+    this.onRunsChanged?.();
     return true;
   }
 
-  listRuns(): { active: { id: number; name: string; startMs: number } | null; runs: BenchRun[] } {
-    return { active: this.activeRun, runs: [...this.runs].reverse() };
+  /** Pins a run as the baseline new runs are compared with (`null` clears it). */
+  setBaseline(id: number | null): boolean {
+    if (id !== null && !this.runs.some((r) => r.id === id)) return false;
+    this.baselineId = id;
+    this.onRunsChanged?.();
+    return true;
+  }
+
+  listRuns(): {
+    active: { id: number; name: string; startMs: number } | null;
+    runs: BenchRun[];
+    baselineId: number | null;
+  } {
+    return { active: this.activeRun, runs: [...this.runs].reverse(), baselineId: this.baselineId };
+  }
+
+  /** State written to disk and offered as a download. */
+  snapshotRuns(): RunsFile {
+    return {
+      version: 1,
+      nextRunId: this.nextRunId,
+      baselineId: this.baselineId,
+      runs: this.runs,
+    };
+  }
+
+  /** Restores saved state (from disk); invalid entries are skipped. */
+  restoreRuns(file: unknown): void {
+    if (typeof file !== 'object' || file === null) return;
+    const f = file as Partial<RunsFile>;
+    const runs = (Array.isArray(f.runs) ? f.runs : []).filter(isBenchRun).slice(-MAX_RUNS);
+    this.runs.splice(0, this.runs.length, ...runs);
+    const maxId = runs.reduce((m, r) => Math.max(m, r.id), 0);
+    this.nextRunId = Math.max(
+      maxId + 1,
+      Number.isInteger(f.nextRunId) ? (f.nextRunId as number) : 1,
+    );
+    this.baselineId =
+      typeof f.baselineId === 'number' && runs.some((r) => r.id === f.baselineId)
+        ? f.baselineId
+        : null;
+  }
+
+  /** Adds runs from an exported file (new ids, so nothing is overwritten). */
+  importRuns(file: unknown): BenchRun[] {
+    const list =
+      typeof file === 'object' && file !== null ? (file as Partial<RunsFile>).runs : null;
+    if (!Array.isArray(list)) throw new Error('not a NodeUI runs export');
+    const valid = list.filter(isBenchRun);
+    if (valid.length === 0) throw new Error('the file contains no valid runs');
+    const added: BenchRun[] = [];
+    for (const run of valid.slice(-MAX_RUNS)) {
+      const id = this.nextRunId;
+      this.nextRunId += 1;
+      added.push(this.addRun({ ...run, id, name: run.name.slice(0, 80) }));
+    }
+    return added;
   }
 
   // ---- lifecycle -----------------------------------------------------------
@@ -574,10 +747,12 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
     const range = clampNum(params.range, 5 * 60_000, 1000, COARSE_SLOTS * COARSE_STEP_S * 1000);
     const fromMs = clampNum(params.from, toMs - range, 0, toMs);
     const maxPoints = clampNum(params.points, 240, 10, 1000);
-    const { stepMs, points, total } = this.query({ fromMs, toMs, maxPoints });
+    const wantHeat = params.heatmap === '1' || params.heatmap === 'true';
+    const { stepMs, points, total, heat } = this.query({ fromMs, toMs, maxPoints, heat: wantHeat });
     return {
       ok: true,
       data: {
+        ...(wantHeat ? { heatmap: buildHeatmap(heat, stepMs) } : {}),
         fromMs,
         toMs,
         stepMs,
@@ -591,6 +766,8 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
           errors4xx: this.totalErrors4xx,
         },
         recording: this.activeRun,
+        annotations: this.annotations?.range(fromMs, toMs) ?? [],
+        heapTrend: assessHeapTrend(points.map((p) => ({ t: p.t, heapUsed: p.heapUsed }))),
       },
     };
   }

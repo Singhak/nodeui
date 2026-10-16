@@ -3,7 +3,14 @@ import type {
   ConfigData,
   ConfirmIssued,
   Envelope,
+  AlertInput,
+  LoadTestConfig,
+  LoadTestStatus,
+  CpuProfileData,
+  Annotation,
   HeapSnapshotData,
+  ReplayInput,
+  ReplayResult,
   RunsData,
 } from './types';
 
@@ -113,4 +120,71 @@ export function saveRun(name: string, fromMs: number, toMs: number): Promise<Ben
 
 export function deleteRun(id: number): Promise<{ deleted: boolean }> {
   return postJson('/runs/delete', { id });
+}
+
+export function resetRouteMetrics(): Promise<{ reset: boolean }> {
+  return postJson('/runs/reset-routes', {});
+}
+
+/** Re-sends a request to the app; needs a fresh confirmation nonce. */
+export function replayRequest(input: ReplayInput, nonce: string): Promise<ReplayResult> {
+  return request<ReplayResult>('/replay', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-nodeui-confirm': nonce },
+    body: JSON.stringify(input),
+  });
+}
+
+export function setBaseline(id: number | null): Promise<{ baselineId: number | null }> {
+  return postJson('/runs/baseline', { id });
+}
+
+export function importRuns(file: unknown): Promise<{ imported: number }> {
+  return postJson('/runs/import', file);
+}
+
+/** Raw JSON text of all saved runs (for a download). */
+export async function exportRuns(): Promise<string> {
+  const res = await fetch(`${apiBase()}/runs/export`, { credentials: 'same-origin' });
+  if (!res.ok) throw new ApiError(`Export failed (HTTP ${res.status})`, 'export-failed');
+  return res.text();
+}
+
+export function addAlert(input: AlertInput): Promise<{ id: number }> {
+  return postJson('/alerts/add', input);
+}
+
+export function removeAlert(id: number): Promise<{ removed: boolean }> {
+  return postJson('/alerts/remove', { id });
+}
+
+export function addAnnotation(label: string, atMs?: number): Promise<Annotation> {
+  return postJson('/annotations/add', { label, atMs });
+}
+
+export function startCpuProfile(seconds: number, nonce: string): Promise<CpuProfileData> {
+  return request<CpuProfileData>('/cpu-profile/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-nodeui-confirm': nonce },
+    body: JSON.stringify({ seconds }),
+  });
+}
+
+export function stopCpuProfile(): Promise<CpuProfileData> {
+  return postJson('/cpu-profile/stop', {});
+}
+
+export function startLoadTest(
+  config: Partial<LoadTestConfig>,
+  nonce: string,
+): Promise<LoadTestStatus> {
+  return request<LoadTestStatus>('/loadtest/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-nodeui-confirm': nonce },
+    body: JSON.stringify(config),
+  });
+}
+
+export function stopLoadTest(): Promise<LoadTestStatus> {
+  return postJson('/loadtest/stop', {});
 }
