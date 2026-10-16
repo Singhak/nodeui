@@ -4,6 +4,9 @@ hero:
   name: NodeUI
   text: The local-only developer console for Node.js
   tagline: NodeUI shows what your running app is doing (requests, queries, errors, memory, logs). It is a developer console, not a UI component library. An embedded, zero-infrastructure dashboard for Express, Fastify, NestJS, Koa, Hapi, Hono and plain node:http.
+  image:
+    src: /logo.svg
+    alt: NodeUI
   actions:
     - theme: brand
       text: Get started

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="NodeUI">
+  <polygon points="128,16 225,72 225,184 128,240 31,184 31,72" fill="#101820" stroke="#68A063" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M62 142 H96 L114 94 L142 172 L160 128 H190" fill="none" stroke="#4ADE80" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="190" cy="128" r="8" fill="#4ADE80"/>
+</svg>

@@ -9,8 +9,12 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   srcExclude: ['superpowers/**'],
-  head: [['meta', { name: 'theme-color', content: '#6366f1' }]],
+  head: [
+    ['meta', { name: 'theme-color', content: '#6366f1' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/nodeui/logo.svg' }],
+  ],
   themeConfig: {
+    logo: '/logo.svg',
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Reference', link: '/reference/configuration' },

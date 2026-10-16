@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ NodeUI
+<img src="docs/app-logo/nodeui-logo.svg" alt="NodeUI" width="360"/>
 
 ### **The Local-Only Developer Console & Observability Suite for Node.js**
 
