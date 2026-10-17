@@ -3,6 +3,47 @@ import { formatDuration, formatPercent } from '../format';
 import type { FlameNode } from '../types';
 
 const ROW_H = 20;
+
+export interface FlameFilter {
+  /** Fold Node's own frames (`node:` / `internal/`) into their callers. */
+  hideInternals?: boolean;
+  /** Fold `node_modules` frames into their callers. */
+  hideDependencies?: boolean;
+}
+
+const isInternal = (n: FlameNode): boolean => /^(node:|internal\/)/.test(n.file);
+const isDependency = (n: FlameNode): boolean => n.file.startsWith('node_modules/');
+
+/**
+ * Removes frames matching the filter by replacing each with its children and
+ * adding its self time to the nearest kept caller, so totals are preserved.
+ */
+export function filterFlame(root: FlameNode, filter: FlameFilter): FlameNode {
+  if (!filter.hideInternals && !filter.hideDependencies) return root;
+  const hidden = (n: FlameNode): boolean =>
+    (filter.hideInternals === true && isInternal(n)) ||
+    (filter.hideDependencies === true && isDependency(n));
+  const walk = (node: FlameNode): FlameNode => {
+    let selfMs = node.selfMs;
+    const children: FlameNode[] = [];
+    const absorb = (child: FlameNode): void => {
+      if (hidden(child)) {
+        selfMs += child.selfMs;
+        child.children.forEach(absorb);
+      } else {
+        children.push(walk(child));
+      }
+    };
+    node.children.forEach(absorb);
+    return { ...node, selfMs, children };
+  };
+  return walk(root);
+}
+
+function containsNode(root: FlameNode, target: FlameNode): boolean {
+  if (root === target) return true;
+  return root.children.some((c) => containsNode(c, target));
+}
 const MIN_FRACTION = 0.003;
 
 interface Cell {
@@ -49,9 +90,28 @@ function colorOf(node: FlameNode): string {
  * Icicle-style flame graph. Width is time (including callees); click a frame to
  * zoom into it, and use the breadcrumb to zoom back out.
  */
-export function FlameGraph({ root }: { root: FlameNode }) {
+export function FlameGraph({
+  root: fullRoot,
+  format = formatDuration,
+  filter,
+}: {
+  root: FlameNode;
+  /** Formats a node value (time by default; pass a byte formatter for heap profiles). */
+  format?: (v: number) => string;
+  filter?: FlameFilter;
+}) {
   const [stack, setStack] = useState<FlameNode[]>([]);
-  const focus = stack[stack.length - 1] ?? root;
+  const hideInternals = filter?.hideInternals;
+  const hideDependencies = filter?.hideDependencies;
+  const root = useMemo(
+    () => filterFlame(fullRoot, { hideInternals, hideDependencies }),
+    [fullRoot, hideInternals, hideDependencies],
+  );
+  // A zoom path from before a filter change may point at removed nodes.
+  const focus = useMemo(() => {
+    const last = stack[stack.length - 1];
+    return last && containsNode(root, last) ? last : root;
+  }, [stack, root]);
   const cells = useMemo(() => layoutFlame(focus), [focus]);
   const depth = cells.reduce((m, c) => Math.max(m, c.depth), 0) + 1;
 
@@ -69,7 +129,7 @@ export function FlameGraph({ root }: { root: FlameNode }) {
         <span className="muted-text">
           {stack.length === 0
             ? 'Click a frame to zoom in.'
-            : `Zoomed into ${focus.name} (${formatDuration(focus.totalMs)})`}
+            : `Zoomed into ${focus.name} (${format(focus.totalMs)})`}
         </span>
       </div>
       <div
@@ -92,9 +152,9 @@ export function FlameGraph({ root }: { root: FlameNode }) {
                 height: ROW_H - 1,
                 background: colorOf(c.node),
               }}
-              title={`${c.node.name}${c.node.file ? `\n${c.node.file}:${c.node.line}` : ''}\n${formatDuration(c.node.totalMs)} total (${formatPercent(
+              title={`${c.node.name}${c.node.file ? `\n${c.node.file}:${c.node.line}` : ''}\n${format(c.node.totalMs)} total (${formatPercent(
                 (c.x1 - c.x0) * (focus.totalMs / (root.totalMs || 1)),
-              )} of profile), ${formatDuration(c.node.selfMs)} self`}
+              )} of profile), ${format(c.node.selfMs)} self`}
               onClick={() => {
                 if (c.node.children.length > 0 && c.node !== focus) {
                   setStack((s) => [...s, c.node]);

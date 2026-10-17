@@ -1,6 +1,7 @@
 import { createInterface } from 'node:readline';
 import type { Readable, Writable } from 'node:stream';
 import type {
+  DiagnoseData,
   ErrorsData,
   HealthData,
   LogsData,
@@ -43,14 +44,32 @@ const TOOLS: Tool[] = [
       'START HERE. Prioritised digest of the running app: health, traffic, grouped errors with stack frames, failing and slow requests, slow/N+1 queries, failing outgoing calls.',
     properties: {},
     async run(_args, t) {
-      const [health, requests, errors, queries, outgoing] = await Promise.all([
+      const [health, requests, errors, queries, outgoing, diagnose] = await Promise.all([
         optional(fetchPanel<HealthData>(t, 'health')),
         optional(fetchPanel<RequestsData>(t, 'requests')),
         optional(fetchPanel<ErrorsData>(t, 'errors')),
         optional(fetchPanel<QueriesData>(t, 'queries')),
         optional(fetchPanel<OutgoingData>(t, 'outgoing')),
+        optional(fetchPanel<DiagnoseData>(t, 'diagnose')),
       ]);
-      return buildDigest({ service: t.name, health, requests, errors, queries, outgoing });
+      return buildDigest({
+        service: t.name,
+        health,
+        requests,
+        errors,
+        queries,
+        outgoing,
+        diagnose,
+      });
+    },
+  },
+  {
+    name: 'nodeui_diagnose',
+    description:
+      'Rule-based performance diagnosis of the last 5 minutes: event-loop blocking (CPU-bound vs I/O), GC pressure, memory-leak suspects, climbing handles, 5xx spikes, slow I/O waits. Each finding has evidence and a suggested next step.',
+    properties: {},
+    async run(_args, t) {
+      return text(await fetchPanel<DiagnoseData>(t, 'diagnose'));
     },
   },
   {
@@ -251,7 +270,7 @@ export function serveMcp(options: McpOptions): { done: Promise<void> } {
           capabilities: { tools: {} },
           serverInfo: SERVER_INFO,
           instructions:
-            'Read-only view of a running Node app. Call nodeui_overview first, then drill into errors, requests, queries.',
+            'Read-only view of a running Node app. Call nodeui_overview first (it includes the performance diagnosis), then drill into errors, requests, queries.',
         });
         // Lazy panels (outgoing calls, queries) only start recording once read.
         for (const s of services) {

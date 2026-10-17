@@ -4,6 +4,7 @@ import { FlameGraph } from '../charts/FlameGraph';
 import { Card, ErrorState, Skeleton, ViewHeader } from '../components/common';
 import { DataTable, type Column } from '../components/DataTable';
 import { Kpi } from '../components/Kpi';
+import { HeapProfiler } from './HeapProfiler';
 import { formatClock, formatDuration, formatPercent } from '../format';
 import { usePolledPanel } from '../hooks';
 import type { CpuProfileData, TopFunction } from '../types';
@@ -57,7 +58,41 @@ function Countdown({ startedAtMs, seconds }: { startedAtMs: number; seconds: num
   return <>{left}s left</>;
 }
 
+/** CPU time or sampled heap allocations; one profile runs per kind. */
 export function ProfilerView({ intervalMs }: { intervalMs: number }) {
+  const [kind, setKind] = useState<'cpu' | 'heap'>('cpu');
+  return (
+    <>
+      <div className="seg" role="group" aria-label="Profile type">
+        <button
+          type="button"
+          className={`seg-btn${kind === 'cpu' ? ' seg-active' : ''}`}
+          aria-pressed={kind === 'cpu'}
+          onClick={() => setKind('cpu')}
+        >
+          CPU
+        </button>
+        <button
+          type="button"
+          className={`seg-btn${kind === 'heap' ? ' seg-active' : ''}`}
+          aria-pressed={kind === 'heap'}
+          onClick={() => setKind('heap')}
+        >
+          Heap allocations
+        </button>
+      </div>
+      {kind === 'cpu' ? (
+        <CpuProfiler intervalMs={intervalMs} />
+      ) : (
+        <HeapProfiler intervalMs={intervalMs} />
+      )}
+    </>
+  );
+}
+
+function CpuProfiler({ intervalMs }: { intervalMs: number }) {
+  const [hideInternals, setHideInternals] = useState(false);
+  const [hideDependencies, setHideDependencies] = useState(false);
   const [running, setRunning] = useState(false);
   const poll = usePolledPanel<CpuProfileData>(
     'cpu-profile',
@@ -183,7 +218,25 @@ export function ProfilerView({ intervalMs }: { intervalMs: number }) {
             title="Flame graph"
             subtitle="Width is time including callees. Grey is idle, red is garbage collection."
           >
-            <FlameGraph root={data.result.tree} />
+            <div className="toolbar">
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={hideInternals}
+                  onChange={(e) => setHideInternals(e.target.checked)}
+                />{' '}
+                Hide Node internals
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={hideDependencies}
+                  onChange={(e) => setHideDependencies(e.target.checked)}
+                />{' '}
+                Hide dependencies
+              </label>
+            </div>
+            <FlameGraph root={data.result.tree} filter={{ hideInternals, hideDependencies }} />
           </Card>
           <Card title="Top functions by self time">
             <DataTable

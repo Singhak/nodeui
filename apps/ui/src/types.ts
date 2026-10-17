@@ -143,6 +143,9 @@ export interface TimeSeriesPoint {
   cpu: number;
   gcCount: number;
   gcMs: number;
+  gcMaxMs?: number;
+  handles?: number;
+  timers?: number;
 }
 
 export interface TimeSeriesData {
@@ -553,3 +556,54 @@ export interface LoadTestStatus {
   runId?: number;
   error?: string;
 }
+
+export interface DiagnoseFinding {
+  id: string;
+  severity: 'critical' | 'warning' | 'info';
+  title: string;
+  detail: string;
+  hint: string;
+  view?: string;
+}
+
+export interface DiagnoseData {
+  status: 'ok' | 'warning' | 'critical' | 'collecting';
+  windowSeconds: number;
+  findings: DiagnoseFinding[];
+}
+
+export interface AllocNode {
+  name: string;
+  file: string;
+  line: number;
+  totalBytes: number;
+  selfBytes: number;
+  children: AllocNode[];
+}
+
+export interface TopAllocator {
+  name: string;
+  file: string;
+  line: number;
+  selfBytes: number;
+  share: number;
+}
+
+export interface HeapProfileResult {
+  durationMs: number;
+  totalBytes: number;
+  tree: AllocNode;
+  top: TopAllocator[];
+}
+
+export type HeapProfileData =
+  | { state: 'idle' }
+  | { state: 'running'; seconds: number; startedAtMs: number }
+  | {
+      state: 'done';
+      seconds: number;
+      startedAtMs: number;
+      finishedAtMs: number;
+      result: HeapProfileResult;
+    }
+  | { state: 'error'; seconds: number; startedAtMs: number; error: string };

@@ -24,4 +24,6 @@ export { RouteMetricsProvider, normalizePath } from './route-metrics';
 export { AlertsProvider, ALERT_METRICS, validateRule, type AlertRuleInput } from './alerts';
 export { AnnotationStore } from '../annotations';
 export { CpuProfileProvider, summarizeProfile, MAX_PROFILE_SECONDS } from './cpu-profile';
+export { HeapProfileProvider, summarizeHeapProfile } from './heap-profile';
+export { DiagnoseProvider, diagnose, type DiagnoseInput } from './diagnose';
 export { LoadGenProvider, validateLoadTest } from './load-gen';

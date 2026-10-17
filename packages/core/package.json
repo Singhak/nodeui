@@ -1,6 +1,6 @@
 {
   "name": "@singhak/nodeui-core",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Framework-neutral engine and safety gate for NodeUI, a local runtime developer console for Node.js apps (not a UI component library).",
   "license": "Apache-2.0",
   "main": "./dist/index.cjs",
@@ -39,6 +39,10 @@
     "memory-leak",
     "heap-snapshot",
     "cpu-profiler",
+    "heap-profiler",
+    "performance-diagnosis",
+    "gc-monitoring",
+    "clinic-alternative",
     "load-testing",
     "request-tracing",
     "local-observability",

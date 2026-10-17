@@ -31,3 +31,9 @@ Keys containing terms like <code>KEY</code>, <code>SECRET</code>, <code>TOKEN</c
 <br/>
 Capturing heap snapshots is a mutating action. When triggered from the UI, a confirmation modal automatically requests a single-use nonce from <code>POST /nodeui/api/confirmations</code> and passes it in the <code>x-nodeui-confirm</code> header to <code>POST /nodeui/api/heap-snapshot</code>.
 </details>
+
+<details>
+<summary><b>How is NodeUI different from Clinic.js?</b></summary>
+<br/>
+Clinic.js runs a one-off, offline analysis (Doctor, Flame, Bubbleprof, Heap Profiler). NodeUI is embedded and always on while you develop: live metrics history, per-request timelines, load-test baselines, a rule-based <b>Diagnosis</b> card (similar in spirit to Clinic Doctor), plus CPU and heap-allocation profiles on demand. It has no async-flow (Bubbleprof) view, so use Clinic for that kind of deep dive.
+</details>

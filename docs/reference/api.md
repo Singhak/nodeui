@@ -45,6 +45,9 @@ All JSON endpoints return an envelope format:
 | `POST` | `/api/annotations/add`, `/remove`                                                       | Chart markers.                                                                                 |
 | `GET`  | `/api/cpu-profile`                                                                      | CPU profile state and result.                                                                  |
 | `POST` | `/api/cpu-profile/start`, `/stop`                                                       | Record a CPU profile (start needs `x-nodeui-confirm`).                                         |
+| `GET`  | `/api/heap-profile`                                                                     | Sampling heap profile state and result (live allocations by function).                         |
+| `POST` | `/api/heap-profile/start`, `/stop`                                                      | Record a heap allocation profile (start needs `x-nodeui-confirm`).                             |
+| `GET`  | `/api/diagnose`                                                                         | Rule-based findings over the last 5 minutes, each with evidence and a next step.               |
 | `GET`  | `/api/loadtest`                                                                         | Built-in load generator status.                                                                |
 | `POST` | `/api/loadtest/start`, `/stop`                                                          | Fire load at the app (start needs `x-nodeui-confirm`).                                         |
 | `POST` | `/api/replay`                                                                           | Re-send a captured request to the app (needs `x-nodeui-confirm`).                              |

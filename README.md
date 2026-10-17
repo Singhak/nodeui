@@ -76,7 +76,7 @@ Reach for NodeUI when you want to answer questions like:
 └──────────────────────┴──────────────────────┴───────────────────────────────┘
 ```
 
-- **📊 Built-in Panels**: Health (with dependency checks), Requests, Queries, Errors, Outgoing HTTP calls, Runtime (Memory, CPU, Event-loop lag, Heap Snapshots), Routes, Logs, Environment, Startup Timeline, Metrics history, Endpoints, Load tests, Alerts and a CPU Profiler.
+- **📊 Built-in Panels**: Health (with dependency checks), Requests, Queries, Errors, Outgoing HTTP calls, Runtime (Memory, CPU, Event-loop lag, Heap Snapshots), Routes, Logs, Environment, Startup Timeline, Metrics history, Endpoints, Load tests, Alerts, a Diagnosis card, and CPU and heap-allocation Profilers.
 - **🔗 Request Correlation**: Outgoing HTTP calls and log lines are attributed to the request that caused them (via `AsyncLocalStorage`) and shown as a per-request timeline.
 - **📈 Grafana for local**: an in-memory metrics history with a latency heatmap, per-route performance, saved load-test runs with baselines and re-run/compare, threshold alerts, annotations and a `nodeui check` CI command. See [Metrics, load tests and alerts](#-metrics-load-tests-and-alerts-grafana-for-local).
 - **🔍 Request Detail (opt-in)**: Matched route pattern (`/users/:id`), query, headers and size-capped bodies, with credentials always redacted. See `captureRequestDetail`.
@@ -372,7 +372,9 @@ NodeUI keeps a bounded metrics history in memory, so you can see how the app beh
 - **Load tests**: record a run while autocannon/k6/wrk fire (or use **Generate load**), pin a **baseline**, and compare. Runs persist across restarts when `persist` or `runsFile` is set.
 - **Alerts**: `nodeui({ alerts: [{ metric: 'p99', threshold: 300 }] })` or add rules in the console. A banner shows while one fires.
 - **Request drawer**: waterfall of queries, outgoing calls and logs; **Replay** to edit and re-send; Copy as curl/fetch/autocannon. Request filters live in the URL and can be saved as views.
-- **Profiler**: CPU flame graph on demand.
+- **Diagnosis**: the Overview names the likely problem from the last five minutes: event loop blocked by CPU work vs. low-CPU stalls, GC pressure, a leaking heap, climbing handles, 5xx spikes, slow I/O waits. Each finding has evidence and a next step.
+- **Profiler**: CPU flame graph on demand (hide Node internals or dependencies), plus a sampling **heap allocation** profile showing who allocated the memory still alive.
+- **GC and handles**: longest GC pause, active handles and timers in the metrics history.
 - **CI**: `npx @singhak/nodeui-cli check --run latest --max-p99 300 --max-regression 10 http://127.0.0.1:3000` exits non-zero when a budget breaks.
 - **Real Grafana**: `GET /nodeui/api/prometheus` can be scraped by Prometheus.
 
@@ -400,7 +402,7 @@ npx @singhak/nodeui-cli dashboard api=http://127.0.0.1:3000 worker=http://127.0.
 }
 ```
 
-`nodeui mcp` is a read-only [MCP](https://modelcontextprotocol.io) server: an overview digest, grouped errors, requests joined with their queries/outgoing calls/logs, and more. It reads the console API, so data is already masked and no confirmation-gated action is reachable.
+`nodeui mcp` is a read-only [MCP](https://modelcontextprotocol.io) server: an overview digest (including the performance diagnosis), a `nodeui_diagnose` tool, grouped errors, requests joined with their queries/outgoing calls/logs, and more. It reads the console API, so data is already masked and no confirmation-gated action is reachable.
 
 See [`packages/cli`](packages/cli) ([npm](https://www.npmjs.com/package/@singhak/nodeui-cli)) for options and limits.
 
@@ -542,7 +544,7 @@ Publish the port on loopback only (`-p 127.0.0.1:3000:3000`). An `allowedRemoteA
 | **Endpoints**     |  🧭  | Per-route performance  | p50/p95/p99, 5xx rate, throughput trend and share of total time for every route, so the costliest endpoint is at the top.                                                                                                                                                             |
 | **Load tests**    |  ⏺️  | Before/after runs      | Record a run while autocannon/k6/wrk fire, or generate load from the console; pin a baseline, compare runs, re-run with one click, export/import. Persisted with `runsFile`.                                                                                                          |
 | **Alerts**        |  🚨  | Budgets                | Threshold rules on latency, error rate, throughput, event loop, CPU and memory, with a banner while firing. Also `nodeui check` for CI.                                                                                                                                               |
-| **Profiler**      |  🔥  | CPU flame graph        | Record a CPU profile for 5-60 s (confirmation nonce required) and read it as a flame graph plus top functions.                                                                                                                                                                        |
+| **Profiler**      |  🔥  | CPU + heap profiles    | Record a CPU profile or a sampling heap-allocation profile for 5-60 s (confirmation nonce required); flame graph with Node-internals and dependency filters, plus top functions or top allocators.                                                                                                                                                                        |
 
 ---
 
@@ -699,6 +701,9 @@ All JSON endpoints return an envelope format:
 | `POST` | `/api/annotations/add`, `/remove`                                                       | Chart markers.                                                                                 |
 | `GET`  | `/api/cpu-profile`                                                                      | CPU profile state and result.                                                                  |
 | `POST` | `/api/cpu-profile/start`, `/stop`                                                       | Record a CPU profile (start needs `x-nodeui-confirm`).                                         |
+| `GET`  | `/api/heap-profile`                                                                     | Sampling heap profile state and result (live allocations by function).                         |
+| `POST` | `/api/heap-profile/start`, `/stop`                                                      | Record a heap allocation profile (start needs `x-nodeui-confirm`).                             |
+| `GET`  | `/api/diagnose`                                                                         | Rule-based findings over the last 5 minutes, each with evidence and a next step.               |
 | `GET`  | `/api/loadtest`                                                                         | Built-in load generator status.                                                                |
 | `POST` | `/api/loadtest/start`, `/stop`                                                          | Fire load at the app (start needs `x-nodeui-confirm`).                                         |
 | `POST` | `/api/replay`                                                                           | Re-send a captured request to the app (needs `x-nodeui-confirm`).                              |

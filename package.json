@@ -1,6 +1,6 @@
 {
   "name": "nodeui-monorepo",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "private": true,
   "license": "Apache-2.0",
   "description": "NodeUI — a BootUI-inspired, local-only developer console for Express, Fastify, NestJS, Koa, Hapi, Hono and node:http applications.",
@@ -9,6 +9,8 @@
     "developer-tools",
     "observability",
     "monitoring",
+    "performance-monitoring",
+    "profiling",
     "debugging",
     "express",
     "nestjs",

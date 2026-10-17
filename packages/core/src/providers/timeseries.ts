@@ -8,6 +8,7 @@ import { assessHeapTrend } from '../heap-trend';
 import type {
   BenchRun,
   BenchRunSummary,
+  HeapTrend,
   NodeUIProvider,
   LatencyHeatmap,
   LoadTestConfig,
@@ -76,6 +77,7 @@ class Slot {
   inflightMax = 0;
   gcCount = 0;
   gcMs = 0;
+  gcMaxMs = 0;
   hist = new Uint32Array(HIST_BUCKETS);
   // gauges (valid when `sampled`)
   sampled = 0;
@@ -86,6 +88,8 @@ class Slot {
   heapTotal = 0;
   rss = 0;
   cpu = 0;
+  handles = 0;
+  timers = 0;
 
   reset(sec: number): void {
     this.sec = sec;
@@ -93,11 +97,12 @@ class Slot {
     this.bytesIn = this.bytesOut = 0;
     this.sumMs = this.maxMs = 0;
     this.inflightMax = 0;
-    this.gcCount = this.gcMs = 0;
+    this.gcCount = this.gcMs = this.gcMaxMs = 0;
     this.hist.fill(0);
     this.sampled = 0;
     this.loopP50 = this.loopP99 = this.loopMax = 0;
     this.heapUsed = this.heapTotal = this.rss = this.cpu = 0;
+    this.handles = this.timers = 0;
   }
 }
 
@@ -115,6 +120,9 @@ export class Acc {
   inflightMax = 0;
   gcCount = 0;
   gcMs = 0;
+  gcMaxMs = 0;
+  handles = 0;
+  timers = 0;
   hist = new Float64Array(HIST_BUCKETS);
   loopP50Sum = 0;
   loopP99 = 0;
@@ -141,6 +149,7 @@ export class Acc {
     if (s.inflightMax > this.inflightMax) this.inflightMax = s.inflightMax;
     this.gcCount += s.gcCount;
     this.gcMs += s.gcMs;
+    if (s.gcMaxMs > this.gcMaxMs) this.gcMaxMs = s.gcMaxMs;
     for (let i = 0; i < HIST_BUCKETS; i += 1)
       this.hist[i] = (this.hist[i] as number) + (s.hist[i] as number);
     const rate = s.req / slotSeconds;
@@ -156,6 +165,8 @@ export class Acc {
       this.heapUsed = s.heapUsed;
       this.heapTotal = s.heapTotal;
       this.rss = s.rss;
+      this.handles = s.handles;
+      this.timers = s.timers;
       if (s.rss > this.rssPeak) this.rssPeak = s.rss;
       if (s.heapUsed > this.heapPeak) this.heapPeak = s.heapUsed;
       this.cpuSum += s.cpu;
@@ -250,6 +261,20 @@ export function isBenchRun(value: unknown): value is BenchRun {
   );
 }
 
+/** Live libuv/timer resources (Node 17.3+); zero where the API is missing. */
+function countActiveResources(): { total: number; timers: number } {
+  const fn = (process as { getActiveResourcesInfo?: () => string[] }).getActiveResourcesInfo;
+  if (typeof fn !== 'function') return { total: 0, timers: 0 };
+  try {
+    const list = fn.call(process);
+    let timers = 0;
+    for (const name of list) if (name === 'Timeout') timers += 1;
+    return { total: list.length, timers };
+  } catch {
+    return { total: 0, timers: 0 };
+  }
+}
+
 function round(n: number, digits = 2): number {
   const f = 10 ** digits;
   return Math.round(n * f) / f;
@@ -283,6 +308,9 @@ function toPoint(t: number, windowSeconds: number, a: Acc): TimeSeriesPoint {
     cpu: round(a.cpuSum / sampled),
     gcCount: a.gcCount,
     gcMs: round(a.gcMs),
+    gcMaxMs: round(a.gcMaxMs),
+    handles: a.handles,
+    timers: a.timers,
   };
 }
 
@@ -322,6 +350,7 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
   private lastTickMs = 0;
   private pendingGcCount = 0;
   private pendingGcMs = 0;
+  private pendingGcMaxMs = 0;
   private readonly startedAtMs: number;
 
   // lifetime totals (Prometheus + UI counters)
@@ -430,8 +459,13 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
 
     slot.gcCount += this.pendingGcCount;
     slot.gcMs += this.pendingGcMs;
+    if (this.pendingGcMaxMs > slot.gcMaxMs) slot.gcMaxMs = this.pendingGcMaxMs;
     this.pendingGcCount = 0;
     this.pendingGcMs = 0;
+    this.pendingGcMaxMs = 0;
+    const res = countActiveResources();
+    slot.handles = res.total;
+    slot.timers = res.timers;
     slot.sampled = 1;
 
     this.rollCoarse(Math.floor(nowMs / 1000));
@@ -457,6 +491,7 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
       if (fine.inflightMax > slot.inflightMax) slot.inflightMax = fine.inflightMax;
       slot.gcCount += fine.gcCount;
       slot.gcMs += fine.gcMs;
+      if (fine.gcMaxMs > slot.gcMaxMs) slot.gcMaxMs = fine.gcMaxMs;
       for (let i = 0; i < HIST_BUCKETS; i += 1) {
         slot.hist[i] = (slot.hist[i] as number) + (fine.hist[i] as number);
       }
@@ -470,6 +505,8 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
         slot.heapUsed = fine.heapUsed;
         slot.heapTotal = fine.heapTotal;
         slot.rss = fine.rss;
+        slot.handles = fine.handles;
+        slot.timers = fine.timers;
       }
       this.lastMergedSec = sec;
     }
@@ -525,6 +562,18 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
     }
     flush();
     return { stepMs: stepSeconds * 1000, points, total, heat };
+  }
+
+  /** Recent windows plus the heap trend, for the Diagnose rules. */
+  recent(seconds: number, maxPoints: number): { points: TimeSeriesPoint[]; heapTrend: HeapTrend } {
+    const toMs = this.now();
+    const { points } = this.query({ fromMs: toMs - seconds * 1000, toMs, maxPoints });
+    // The leak check needs a longer horizon than the rule window.
+    const long = this.query({ fromMs: toMs - 30 * 60_000, toMs, maxPoints: 120 }).points;
+    return {
+      points,
+      heapTrend: assessHeapTrend(long.map((p) => ({ t: p.t, heapUsed: p.heapUsed }))),
+    };
   }
 
   // ---- runs ----------------------------------------------------------------
@@ -714,6 +763,7 @@ export class TimeSeriesProvider implements NodeUIProvider<TimeSeriesData> {
         for (const e of list.getEntries()) {
           this.pendingGcCount += 1;
           this.pendingGcMs += e.duration;
+          if (e.duration > this.pendingGcMaxMs) this.pendingGcMaxMs = e.duration;
         }
       });
       this.gcObserver.observe({ entryTypes: ['gc'] });

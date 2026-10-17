@@ -20,7 +20,7 @@ features:
   - title: Local and secure
     details: Loopback-only by default, automatic secret masking, and fail-closed in production.
   - title: Everything in one place
-    details: Requests, queries (with N+1 detection), errors, outgoing calls, logs, routes, memory, CPU, event-loop lag and heap snapshots.
+    details: Requests, queries (with N+1 detection), errors, outgoing calls, logs, routes, memory, CPU, event-loop lag, heap snapshots, CPU and heap-allocation profiles, and an automatic performance diagnosis.
   - title: Request correlation
     details: Outgoing calls, queries and log lines are attributed to the request that caused them, shown as a per-request timeline.
   - title: Low overhead

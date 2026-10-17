@@ -71,8 +71,9 @@ function labelOf(frame: RawCpuProfile['nodes'][number]['callFrame']): string {
   return frame.functionName || '(anonymous)';
 }
 
-function shortUrl(url: string): string {
+export function shortUrl(url: string): string {
   if (!url) return '';
+  if (url.startsWith('node:')) return url;
   const clean = url.replace(/^file:\/\/\/?/, '');
   const i = clean.lastIndexOf('node_modules/');
   if (i >= 0) return clean.slice(i);

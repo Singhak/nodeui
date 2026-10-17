@@ -27,7 +27,9 @@ export type BuiltInPanelId =
   | 'routemetrics'
   | 'alerts'
   | 'cpu-profile'
-  | 'loadtest';
+  | 'heap-profile'
+  | 'loadtest'
+  | 'diagnose';
 
 /**
  * Panel identifier. Built-in panels are listed in {@link BuiltInPanelId};
@@ -296,6 +298,12 @@ export interface TimeSeriesPoint {
   cpu: number;
   gcCount: number;
   gcMs: number;
+  /** Longest single GC pause in the window. */
+  gcMaxMs: number;
+  /** Active libuv resources (sockets, timers, fs requests) at the window end. */
+  handles: number;
+  /** Active timers at the window end. */
+  timers: number;
 }
 
 export interface TimeSeriesData {
@@ -733,3 +741,65 @@ export interface LoadTestStatus {
   runId?: number;
   error?: string;
 }
+
+export type DiagnoseSeverity = 'critical' | 'warning' | 'info';
+
+/** One diagnosis: what looks wrong, the evidence, and where to look next. */
+export interface DiagnoseFinding {
+  id: string;
+  severity: DiagnoseSeverity;
+  title: string;
+  detail: string;
+  /** Suggested next step. */
+  hint: string;
+  /** Console view that helps confirm it. */
+  view?: 'runtime' | 'profiler' | 'requests' | 'endpoints' | 'outgoing' | 'queries' | 'errors';
+}
+
+export interface DiagnoseData {
+  status: 'ok' | 'warning' | 'critical' | 'collecting';
+  /** Look-back window the rules read, in seconds. */
+  windowSeconds: number;
+  findings: DiagnoseFinding[];
+}
+
+/** One function in the allocation tree of a sampling heap profile. */
+export interface AllocNode {
+  name: string;
+  file: string;
+  line: number;
+  /** Sampled bytes allocated here and by everything it called. */
+  totalBytes: number;
+  /** Sampled bytes allocated by this function itself. */
+  selfBytes: number;
+  children: AllocNode[];
+}
+
+export interface TopAllocator {
+  name: string;
+  file: string;
+  line: number;
+  selfBytes: number;
+  /** Fraction of all sampled bytes (0..1). */
+  share: number;
+}
+
+export interface HeapProfileResult {
+  durationMs: number;
+  /** Sampled bytes that were still live when the profile stopped. */
+  totalBytes: number;
+  tree: AllocNode;
+  top: TopAllocator[];
+}
+
+export type HeapProfileData =
+  | { state: 'idle' }
+  | { state: 'running'; seconds: number; startedAtMs: number }
+  | {
+      state: 'done';
+      seconds: number;
+      startedAtMs: number;
+      finishedAtMs: number;
+      result: HeapProfileResult;
+    }
+  | { state: 'error'; seconds: number; startedAtMs: number; error: string };

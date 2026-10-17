@@ -1,7 +1,7 @@
 {
   "name": "@singhak/nodeui-cli",
-  "version": "0.6.1",
-  "description": "NodeUI command line: attach the console to any Node app without code changes, a multi-service dashboard, and an MCP server for AI agents.",
+  "version": "0.7.0",
+  "description": "NodeUI command line: attach the console to any Node app without code changes, a multi-service dashboard, and an MCP server for AI agents with a performance diagnosis tool.",
   "license": "Apache-2.0",
   "bin": {
     "nodeui": "dist/cli.cjs"
@@ -36,6 +36,10 @@
     "memory-leak",
     "heap-snapshot",
     "cpu-profiler",
+    "heap-profiler",
+    "performance-diagnosis",
+    "gc-monitoring",
+    "clinic-alternative",
     "load-testing",
     "request-tracing",
     "local-observability",
@@ -62,7 +66,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@singhak/nodeui-core": "^0.6.1"
+    "@singhak/nodeui-core": "^0.7.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",

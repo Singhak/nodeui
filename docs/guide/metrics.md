@@ -58,6 +58,9 @@ The API also accepts `GET /api/requests?limit=<n>&offset=<n>` (limit up to 5000;
 | `POST /api/annotations/add` / `remove`          | chart markers                                     |
 | `GET /api/cpu-profile`                          | CPU profile state and result                      |
 | `POST /api/cpu-profile/start` / `stop`          | record a CPU profile (start needs a nonce)        |
+| `GET /api/heap-profile`                         | heap allocation profile state and result          |
+| `POST /api/heap-profile/start` / `stop`         | record a heap allocation profile (needs a nonce)  |
+| `GET /api/diagnose`                             | rule-based findings for the last 5 minutes        |
 | `GET /api/loadtest`                             | built-in load generator status                    |
 | `POST /api/loadtest/start` / `stop`             | fire load at the app (start needs a nonce)        |
 | `POST /api/runs/baseline` `{id}`                | pin or clear the baseline run                     |
@@ -111,11 +114,31 @@ Pin a run as the **baseline** in Load tests: every other run then shows p99 and 
 
 `server.annotate('deployed v2')` (or **Add marker** in Metrics) draws a vertical marker on every chart. Load-test boundaries and alerts add their own.
 
+## Diagnosis
+
+The **Diagnosis** card on the Overview reads the last five minutes of history and names the likely problem, in the spirit of Clinic Doctor. It checks:
+
+| Finding | Trigger | Where to look next |
+| --- | --- | --- |
+| Event loop blocked by CPU-heavy work | loop p99 above 100 ms in 20%+ of windows, CPU 60%+ | Profiler (CPU) |
+| Event loop stalls with low CPU | same delay, CPU below 60% | sync fs / `execSync` / DNS, GC pauses |
+| Garbage collection costing time | GC over 10% of wall time, or a pause over 100 ms | allocation churn, Heap allocations profile |
+| Possible memory leak | rising post-GC heap floor (see Heap trend) | heap snapshots, Heap allocations profile |
+| Active handles keep climbing | handles up 50+ and 1.5x | leaked timers, sockets, streams |
+| Elevated 5xx rate | 5%+ of requests (20+ requests) | Errors |
+| Slow requests while idle | p95 over 500 ms with CPU below 50% | Queries, Outgoing |
+
+These are heuristics, not proof. The same findings appear in `nodeui mcp` (`nodeui_diagnose`, and inside `nodeui_overview`).
+
+The Metrics view also charts the longest GC pause and **Active handles** (sockets, timers, fs requests); a steady climb means a leak.
+
 ## Memory and CPU
 
 The **Heap trend** tile looks at the lowest heap points in the window (what survives garbage collection) and warns when that floor keeps rising; it needs at least five minutes of history. It is a heuristic, not proof: confirm with a heap snapshot in Runtime.
 
-The **Profiler** view records a CPU profile for 5 to 60 seconds (each start needs a confirmation nonce) and shows it as a flame graph plus the top functions by self time.
+The **Profiler** view records a CPU profile for 5 to 60 seconds (each start needs a confirmation nonce) and shows it as a flame graph plus the top functions by self time. **Hide Node internals** and **Hide dependencies** fold those frames into their callers so your own code stands out.
+
+Switch to **Heap allocations** for a sampling heap profile: it shows which functions allocated the memory that is still alive when it stops (short-lived garbage is not shown), as an allocation graph plus top allocators. Use it with heap snapshots, which show what is retained but not who allocated it.
 
 ## Scraping with a real Grafana
 

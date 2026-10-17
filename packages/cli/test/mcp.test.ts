@@ -98,6 +98,7 @@ describe('mcp server', () => {
     expect(names).toEqual(
       expect.arrayContaining([
         'nodeui_overview',
+        'nodeui_diagnose',
         'nodeui_errors',
         'nodeui_request',
         'nodeui_queries',
@@ -136,6 +137,17 @@ describe('mcp server', () => {
 
     const missing = await c.rpc('tools/call', { name: 'nodeui_request', arguments: { id: 9999 } });
     expect(missing.result.isError).toBe(true);
+    await c.end();
+  });
+
+  it('serves the performance diagnosis', async () => {
+    const a = await service();
+    const c = client([{ name: 'api', base: a.base }]);
+    await c.rpc('initialize');
+    const res = await c.rpc('tools/call', { name: 'nodeui_diagnose', arguments: {} });
+    const data = JSON.parse(res.result.content[0].text);
+    expect(['collecting', 'ok', 'warning', 'critical']).toContain(data.status);
+    expect(Array.isArray(data.findings)).toBe(true);
     await c.end();
   });
 

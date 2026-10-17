@@ -1,4 +1,5 @@
 import type {
+  DiagnoseData,
   ErrorsData,
   HealthData,
   OutgoingData,
@@ -14,6 +15,8 @@ export interface DigestInput {
   errors: ErrorsData | null;
   queries: QueriesData | null;
   outgoing: OutgoingData | null;
+  /** Rule-based performance findings (event loop, GC, leaks, error spikes). */
+  diagnose?: DiagnoseData | null;
 }
 
 const ms = (n: number): string => `${n.toFixed(n < 10 ? 1 : 0)} ms`;
@@ -31,7 +34,7 @@ function routeOf(r: RequestEntry): string {
  */
 export function buildDigest(input: DigestInput): string {
   const out: string[] = [`# ${input.service}`];
-  const { health, requests, errors, queries, outgoing } = input;
+  const { health, requests, errors, queries, outgoing, diagnose } = input;
 
   if (health) {
     out.push(
@@ -44,6 +47,14 @@ export function buildDigest(input: DigestInput): string {
   }
 
   const problems: string[] = [];
+  if (diagnose && diagnose.findings.length > 0) {
+    problems.push('## Performance diagnosis (last 5 min)');
+    for (const f of diagnose.findings) {
+      problems.push(
+        `- **[${f.severity}] ${f.title}**: ${oneLine(f.detail)} Next: ${oneLine(f.hint)}`,
+      );
+    }
+  }
   if (errors && errors.groups.length > 0) {
     const groups = [...errors.groups].sort((a, b) => b.lastSeenMs - a.lastSeenMs).slice(0, 5);
     problems.push('## Errors (most recent first)');

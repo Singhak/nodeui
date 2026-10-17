@@ -7,6 +7,7 @@ import type {
   LoadTestConfig,
   LoadTestStatus,
   CpuProfileData,
+  HeapProfileData,
   Annotation,
   HeapSnapshotData,
   ReplayInput,
@@ -172,6 +173,18 @@ export function startCpuProfile(seconds: number, nonce: string): Promise<CpuProf
 
 export function stopCpuProfile(): Promise<CpuProfileData> {
   return postJson('/cpu-profile/stop', {});
+}
+
+export function startHeapProfile(seconds: number, nonce: string): Promise<HeapProfileData> {
+  return request<HeapProfileData>('/heap-profile/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-nodeui-confirm': nonce },
+    body: JSON.stringify({ seconds }),
+  });
+}
+
+export function stopHeapProfile(): Promise<HeapProfileData> {
+  return postJson('/heap-profile/stop', {});
 }
 
 export function startLoadTest(

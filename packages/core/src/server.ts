@@ -36,6 +36,7 @@ import { resolveStaticAsset, uiAssetsDir } from './static';
 import { MemoryProvider } from './providers/memory';
 import { CpuProvider } from './providers/cpu';
 import { EventLoopLagProvider } from './providers/event-loop';
+import { DiagnoseProvider } from './providers/diagnose';
 import { HealthProvider } from './providers/health';
 import { HeapSnapshotProvider } from './providers/heap-snapshot';
 import { bindRequestId, currentRequestId, runWithRequestId } from './context';
@@ -52,6 +53,7 @@ import { TimeSeriesProvider } from './providers/timeseries';
 import { RouteMetricsProvider } from './providers/route-metrics';
 import { AlertsProvider, type AlertRuleInput } from './providers/alerts';
 import { CpuProfileProvider } from './providers/cpu-profile';
+import { HeapProfileProvider } from './providers/heap-profile';
 import { LoadGenProvider } from './providers/load-gen';
 import { MetricsProvider, LogsProvider, EnvProvider, RoutesProvider } from './providers';
 
@@ -254,7 +256,9 @@ const BUILT_IN_PANELS = new Set<string>([
   'routemetrics',
   'alerts',
   'cpu-profile',
+  'heap-profile',
   'loadtest',
+  'diagnose',
 ]);
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const RESERVED_API_NAMES = new Set([
@@ -479,6 +483,10 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
   if (config.enabled) timeSeries.start(ctx);
   const cpuProfile = new CpuProfileProvider();
   registry.register(cpuProfile);
+  const heapProfile = new HeapProfileProvider();
+  registry.register(heapProfile);
+
+  registry.register(new DiagnoseProvider({ history: (s, n) => timeSeries.recent(s, n) }));
 
   const loadGen = new LoadGenProvider({
     startRun: (name, config) => void timeSeries.startRun(name, config),
@@ -755,6 +763,10 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
     req: IncomingMessage,
     res: ServerResponse,
     action: string,
+    profiler: Pick<
+      CpuProfileProvider | HeapProfileProvider,
+      'startProfile' | 'stopProfile'
+    > = cpuProfile,
   ): Promise<void> {
     try {
       if (action === 'start') {
@@ -762,10 +774,10 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
         if (!requireConfirmation(req, res)) return;
         sendJson(res, 200, {
           ok: true,
-          data: await cpuProfile.startProfile(Number(body.seconds)),
+          data: await profiler.startProfile(Number(body.seconds)),
         });
       } else {
-        sendJson(res, 200, { ok: true, data: await cpuProfile.stopProfile() });
+        sendJson(res, 200, { ok: true, data: await profiler.stopProfile() });
       }
     } catch (err) {
       sendJson(res, 409, {
@@ -1070,6 +1082,9 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       if (apiPath === '/cpu-profile/start' || apiPath === '/cpu-profile/stop') {
         return handleProfileAction(req, res, apiPath.slice('/cpu-profile/'.length));
       }
+      if (apiPath === '/heap-profile/start' || apiPath === '/heap-profile/stop') {
+        return handleProfileAction(req, res, apiPath.slice('/heap-profile/'.length), heapProfile);
+      }
       if (apiPath === '/annotations/add' || apiPath === '/annotations/remove') {
         return handleAnnotationAction(req, res, apiPath.slice('/annotations/'.length));
       }
@@ -1325,6 +1340,7 @@ export function createNodeUI(options: NodeUIOptions = {}): NodeUIServer {
       timeSeries.stop();
       alerts.stop();
       cpuProfile.stop();
+      heapProfile.stop();
       loadGen.stop();
       runStore?.close();
       persistence?.close();

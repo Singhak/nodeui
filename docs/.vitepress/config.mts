@@ -4,7 +4,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'NodeUI Docs',
   description:
-    'NodeUI: a local-only runtime developer console and observability suite (not a UI component library) for Express, Fastify, NestJS, Koa, Hapi, Hono and node:http.',
+    'NodeUI: a local-only runtime developer console and observability suite (not a UI component library) for Express, Fastify, NestJS, Koa, Hapi, Hono and node:http. Latency, event-loop lag, memory leaks, CPU and heap profiling, and automatic performance diagnosis.',
   base: '/nodeui/',
   cleanUrls: true,
   lastUpdated: true,

@@ -6,6 +6,7 @@ import { Card, EmptyState, ErrorState, Skeleton, ViewHeader } from '../component
 import { DataTable, type Column } from '../components/DataTable';
 import { Kpi, type Tone } from '../components/Kpi';
 import { formatBytes, formatClock, formatDuration, formatSeconds } from '../format';
+import { DiagnoseCard } from './DiagnoseCard';
 import { currentRate, useTelemetry, type Pt } from '../telemetry';
 import type { HealthCheckResult, RouteStat } from '../types';
 
@@ -251,6 +252,8 @@ export function Overview() {
           <ErrorState message={t.errors.health} onRetry={t.retry} />
         </Card>
       ) : null}
+
+      <DiagnoseCard />
 
       <div className="kpi-grid" aria-label="Key indicators">
         {t.loading && !t.errors.health ? (

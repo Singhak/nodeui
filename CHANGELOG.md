@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-17
+
+### Added
+
+- **Diagnosis** card on the Overview and `GET /api/diagnose`: rule-based findings over the last five minutes (CPU-bound or low-CPU event-loop stalls, GC pressure, heap leak suspects, climbing handles, 5xx spikes, slow-but-idle I/O waits), each with a suggested next step.
+- Longest GC pause, active handles and timers in the metrics history, with an **Active handles** chart in Metrics.
+- **Heap allocations** profiler (`GET /api/heap-profile`, nonce-gated `POST /api/heap-profile/start|stop`): sampling heap profile showing which functions allocated memory that is still live, as an allocation graph plus top allocators.
+- `nodeui mcp`: new `nodeui_diagnose` tool, and the `nodeui_overview` digest now includes the performance diagnosis.
+- Flame graph **Hide Node internals** and **Hide dependencies** filters.
+
 ## [0.6.1] - 2026-10-16
 
 ### Changed

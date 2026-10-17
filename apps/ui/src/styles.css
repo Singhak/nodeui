@@ -1707,3 +1707,20 @@ td.wrap {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
+
+.diagnose-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.diagnose-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.diagnose-row p {
+  margin: 2px 0 0;
+}

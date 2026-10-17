@@ -135,6 +135,13 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
     () => [line(points, 'cpu', 'CPU', 5, (p) => p.cpu, { area: true })],
     [points],
   );
+  const handles = useMemo<ChartSeries[]>(
+    () => [
+      line(points, 'handles', 'Active handles', 1, (p) => p.handles ?? 0, { area: true }),
+      line(points, 'timers', 'Timers', 4, (p) => p.timers ?? 0, { dash: '4 3' }),
+    ],
+    [points],
+  );
   const gc = useMemo<ChartSeries[]>(
     () => [line(points, 'gc', 'GC pause', 6, (p) => p.gcMs / stepSec, { area: true })],
     [points, stepSec],
@@ -450,6 +457,19 @@ export function MetricsView({ intervalMs }: { intervalMs: number }) {
                 format={(v) => `${v.toFixed(1)} %`}
                 tickFormat={(v) => String(Math.round(v))}
                 yMax={10}
+                {...shared}
+              />
+            </Card>
+            <Card
+              title="Active handles"
+              subtitle="open sockets, timers and fs requests; a steady climb means a leak"
+            >
+              <LineChart
+                title="Active handles"
+                unit="count"
+                series={handles}
+                format={(v) => String(Math.round(v))}
+                tickFormat={(v) => String(Math.round(v))}
                 {...shared}
               />
             </Card>
