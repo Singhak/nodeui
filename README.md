@@ -521,6 +521,68 @@ nodeui({
 
 Publish the port on loopback only (`-p 127.0.0.1:3000:3000`). An `allowedRemoteAddresses` entry that is not a valid IP or CIDR is reported at startup and never matches. Requests carrying `X-Forwarded-*` headers are rejected unless `trustProxy: true`.
 
+### Run it in Docker, step by step
+
+NodeUI runs inside your app's process, so there is no extra container or image. Mount it as usual, then:
+
+**1. Listen on `0.0.0.0` inside the container** (a server bound to `127.0.0.1` cannot be reached through a published port):
+
+```typescript
+app.listen(3000, '0.0.0.0', () => server.mark('listening'));
+```
+
+**2. Dockerfile** (keep `NODE_ENV` out of `production`, NodeUI is off there):
+
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+EXPOSE 3000
+ENV NODE_ENV=development
+CMD ["node", "server.js"]
+```
+
+**3. Run with the port published on loopback only**, and allow the Docker bridge through environment variables (no code change needed):
+
+```bash
+docker run --rm -p 127.0.0.1:3000:3000 \
+  -e NODEUI_TOKEN=change-me \
+  -e NODEUI_ALLOWED_REMOTE=172.16.0.0/12 \
+  my-app
+```
+
+**4. Open** `http://127.0.0.1:3000/nodeui/?token=change-me` once. A cookie keeps you signed in.
+
+**Docker Compose:**
+
+```yaml
+services:
+  api:
+    build: .
+    ports:
+      - '127.0.0.1:3000:3000'
+    environment:
+      NODE_ENV: development
+      NODEUI_TOKEN: ${NODEUI_TOKEN:?set NODEUI_TOKEN}
+      NODEUI_ALLOWED_REMOTE: 172.16.0.0/12
+      NODEUI_HEAP_SNAPSHOT_DIR: /snapshots # optional: heap snapshots survive the container
+    volumes:
+      - ./.nodeui/snapshots:/snapshots
+```
+
+**Cannot edit the app?** Attach from the CLI: `CMD ["npx", "nodeui", "attach", "--", "node", "server.js"]` (install `@singhak/nodeui-cli` as a dev dependency) with the same environment variables.
+
+**Good to know**
+
+- Still `403 loopback-only`? Docker Desktop can use another gateway (for example `192.168.65.0/24`). Find yours with `docker network inspect bridge` and allow that range.
+- The CLI tools (`check`, `dashboard`, `mcp`) hit the same guard from your machine. Put the token on the URL: `"http://127.0.0.1:3000?token=change-me"`.
+- Heap snapshots are written **inside the container** (`/tmp/nodeui-heap`). Use `docker cp` or `NODEUI_HEAP_SNAPSHOT_DIR` on a volume. Set `NODEUI_PERSIST_FILE` / `NODEUI_RUNS_FILE` to a volume to keep the journal and saved load-test runs.
+- Production images: leave NodeUI off (the default). For staging or a debugging session, set `NODEUI_ENABLED=true`, keep a token on and the port bound to loopback or a private network.
+
+Full guide with a troubleshooting table: [Docker and proxies](https://singhak.github.io/nodeui/guide/docker).
+
 ---
 
 ## 🖥️ Interactive Panels
@@ -544,7 +606,7 @@ Publish the port on loopback only (`-p 127.0.0.1:3000:3000`). An `allowedRemoteA
 | **Endpoints**     |  🧭  | Per-route performance  | p50/p95/p99, 5xx rate, throughput trend and share of total time for every route, so the costliest endpoint is at the top.                                                                                                                                                             |
 | **Load tests**    |  ⏺️  | Before/after runs      | Record a run while autocannon/k6/wrk fire, or generate load from the console; pin a baseline, compare runs, re-run with one click, export/import. Persisted with `runsFile`.                                                                                                          |
 | **Alerts**        |  🚨  | Budgets                | Threshold rules on latency, error rate, throughput, event loop, CPU and memory, with a banner while firing. Also `nodeui check` for CI.                                                                                                                                               |
-| **Profiler**      |  🔥  | CPU + heap profiles    | Record a CPU profile or a sampling heap-allocation profile for 5-60 s (confirmation nonce required); flame graph with Node-internals and dependency filters, plus top functions or top allocators.                                                                                                                                                                        |
+| **Profiler**      |  🔥  | CPU + heap profiles    | Record a CPU profile or a sampling heap-allocation profile for 5-60 s (confirmation nonce required); flame graph with Node-internals and dependency filters, plus top functions or top allocators.                                                                                    |
 
 ---
 
