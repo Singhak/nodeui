@@ -1,6 +1,30 @@
 # FAQ and troubleshooting
 
 <details>
+<summary><b>I opened the console and there is a lot here. Where do I start?</b></summary>
+<br/>
+Start with <b>Overview</b> to see whether the app is healthy. Then use <b>Requests</b> or <b>Endpoints</b> to find what is slow, and <b>Errors</b> and <b>Queries</b> to find out why. Open <b>Runtime</b> and <b>Profiler</b> only when those point to CPU, memory or event-loop problems. The Diagnosis card suggests a next step.
+</details>
+
+<details>
+<summary><b>The console is empty or shows no requests. What did I miss?</b></summary>
+<br/>
+Check the startup log first: NodeUI prints a warning when it is inactive by config (for example <code>NODE_ENV=production</code> or <code>NODEUI_ENABLED=false</code>). Then make sure the middleware or plugin is mounted <b>before</b> your routes (Express <code>app.use(middleware)</code>, Fastify <code>app.register(nodeui())</code>), and send a request to your app so there is something to record.
+</details>
+
+<details>
+<summary><b>Do I need to install it in production, or keep it out of my build?</b></summary>
+<br/>
+No. Install it as a dev dependency. The console is off when <code>NODE_ENV=production</code>, and if you prune dev dependencies in production images, load it conditionally with a dynamic <code>import()</code> behind a <code>NODE_ENV</code> check (see the "How to Use It" steps).
+</details>
+
+<details>
+<summary><b>Will it slow my app down?</b></summary>
+<br/>
+Disabled, the middleware is a plain <code>next()</code>. Enabled, expect a fraction of a millisecond per request, and sampling sleeps when the console is idle. Use <code>capture: 'lazy'</code> for zero cost until you open the console. See Benchmarks for measured numbers.
+</details>
+
+<details>
 <summary><b>Why is the console only reachable from my local machine?</b></summary>
 <br/>
 By default, NodeUI binds strictly to <code>127.0.0.1</code> and rejects non-loopback requests with <code>403 Forbidden</code>. This is a crucial security barrier so sensitive runtime data and heap snapshots are never exposed to local networks or the public internet. If you need remote access for internal teams, place an authenticated reverse proxy in front of the application.
