@@ -1,0 +1,596 @@
+<title>NodeUI Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky tab bar over one diagram-led section at a time; Q&A tab is a searchable accordion. */
+:root {
+  --bg: #f4f6f5;
+  --surface: #ffffff;
+  --ink: #16201d;
+  --muted: #5a6763;
+  --line: #d3dbd7;
+  --line-strong: #8a9893;
+  --accent: #0f766e;
+  --accent-bg: #e3f3f0;
+  --amber: #a85a06;
+  --amber-bg: #fbeedb;
+  --danger: #b42318;
+  --danger-bg: #fbe9e7;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1514; --surface: #162120; --ink: #e5ece9; --muted: #98a8a3;
+    --line: #2b3a37; --line-strong: #6b7f79; --accent: #2dd4bf; --accent-bg: #12312e;
+    --amber: #f0a64e; --amber-bg: #38280f; --danger: #ff8a7a; --danger-bg: #3a1a16;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1514; --surface: #162120; --ink: #e5ece9; --muted: #98a8a3;
+  --line: #2b3a37; --line-strong: #6b7f79; --accent: #2dd4bf; --accent-bg: #12312e;
+  --amber: #f0a64e; --amber-bg: #38280f; --danger: #ff8a7a; --danger-bg: #3a1a16;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1060px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header h1 { margin: 0 0 6px; font-size: 28px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 70ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.9em; }
+code { background: var(--accent-bg); color: var(--ink); padding: 1px 5px; border-radius: 3px; }
+
+nav.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); display: flex; gap: 4px; overflow-x: auto; margin-top: 22px; border-bottom: 1px solid var(--line); padding-top: 6px; }
+nav.tabs button { font: inherit; font-size: 14px; color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 12px; cursor: pointer; white-space: nowrap; }
+nav.tabs button:hover { color: var(--ink); }
+nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+nav.tabs button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+section.pane { padding-top: 26px; display: flex; flex-direction: column; gap: 22px; }
+section.pane h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.lead { margin: 0; color: var(--muted); max-width: 72ch; }
+
+figure { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 8px; }
+.scroll svg { display: block; width: 100%; min-width: 780px; height: auto; color: var(--ink); }
+figcaption { font-size: 13.5px; color: var(--muted); max-width: 78ch; }
+
+/* svg parts, styled from page tokens */
+svg .b { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; }
+svg .acc { fill: var(--accent-bg); stroke: var(--accent); stroke-width: 1.2; }
+svg .amb { fill: var(--amber-bg); stroke: var(--amber); stroke-width: 1.2; }
+svg .bad { fill: var(--danger-bg); stroke: var(--danger); stroke-width: 1.2; }
+svg .ctn { fill: none; stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 5 4; }
+svg .ctn2 { fill: none; stroke: var(--accent); stroke-width: 1.2; }
+svg .ln { stroke: currentColor; stroke-width: 1.5; fill: none; }
+svg .dash { stroke-dasharray: 5 4; }
+svg .life { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 5; }
+svg text { fill: var(--ink); font-family: var(--font-body); font-size: 12px; }
+svg text.h { font-weight: 600; font-size: 13px; }
+svg text.s { font-family: var(--font-mono); font-size: 11px; fill: var(--muted); }
+svg text.c { text-anchor: middle; }
+svg text.lbl { font-family: var(--font-mono); font-size: 11px; fill: var(--muted); }
+svg text.lane { font-weight: 600; font-size: 13px; fill: var(--accent); }
+svg text.amberT { fill: var(--amber); font-weight: 600; font-size: 13px; }
+svg text.badT { fill: var(--danger); }
+
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.card { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 14px 16px; min-width: 0; }
+.card h3 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+.card p { margin: 0; color: var(--muted); font-size: 14px; }
+.steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 32px 1fr; gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.steps li::before { content: counter(s); font-family: var(--font-mono); font-weight: 500; color: var(--accent); background: var(--accent-bg); border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; font-size: 13px; }
+.steps b { display: block; }
+.steps span { color: var(--muted); font-size: 14px; }
+
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 500; }
+td:first-child { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; }
+
+.qa-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.qa-tools input { flex: 1 1 260px; min-width: 0; font: inherit; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips button { font: inherit; font-size: 13px; padding: 5px 11px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.chips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.qa-list { display: grid; gap: 8px; }
+details { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+summary { cursor: pointer; padding: 11px 14px; font-weight: 500; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; list-style-position: inside; }
+summary .tag { font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--accent); background: var(--accent-bg); padding: 1px 7px; border-radius: 999px; }
+details[open] summary { border-bottom: 1px solid var(--line); }
+.qa-body { padding: 12px 16px 14px; display: grid; gap: 8px; font-size: 14.5px; }
+.qa-body div { display: grid; grid-template-columns: 62px 1fr; gap: 10px; min-width: 0; }
+.qa-body dt, .qa-body .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); padding-top: 3px; }
+.qa-body .v { min-width: 0; overflow-wrap: anywhere; }
+.empty { color: var(--muted); padding: 14px 0; }
+@media (max-width: 520px) { .qa-body div { grid-template-columns: 1fr; gap: 2px; } }
+</style>
+
+<div class="wrap">
+<header>
+  <h1>NodeUI Architecture</h1>
+  <p>NodeUI aapke Node app ke andar hi chalne wala local developer console hai. Yeh page batata hai ki data kahan se aata hai, kahan jaata hai, aur har feature code mein kahan rehta hai.</p>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Sections">
+  <button role="tab" data-tab="overview">Poori tasveer</button>
+  <button role="tab" data-tab="flow">Request ka safar</button>
+  <button role="tab" data-tab="capture">Data kaise pakadta hai</button>
+  <button role="tab" data-tab="live">UI aur live data</button>
+  <button role="tab" data-tab="metrics">Metrics, tests, alerts</button>
+  <button role="tab" data-tab="safety">Safety</button>
+  <button role="tab" data-tab="packages">Packages</button>
+  <button role="tab" data-tab="qa">Feature Q&amp;A</button>
+</nav>
+
+<!-- ============ OVERVIEW ============ -->
+<section class="pane" id="overview">
+  <h2>Poori tasveer</h2>
+  <p class="lead">Sab kuch aapke app ke process ke andar chalta hai. Koi alag server, database ya cloud nahi. Bahar sirf browser, CLI aur aapke chune hue opt-in sinks jaate hain.</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 990 640" role="img" aria-label="NodeUI ka process: adapter ya CLI attach se core engine mount hota hai; guard, router, capture layer, providers aur metrics engine ek hi process mein; browser aur CLI HTTP se console tak aate hain; journal, OTLP, runs file aur Prometheus opt-in sinks hain.">
+      <defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+
+      <!-- process -->
+      <rect class="ctn" x="240" y="14" width="560" height="612" rx="8"/>
+      <text class="lbl" x="256" y="34">Aapke Node app ka process (sirf dev mein ON)</text>
+
+      <rect class="b" x="260" y="50" width="250" height="76" rx="6"/>
+      <text class="h c" x="385" y="72">Framework adapter</text>
+      <text class="s c" x="385" y="92">express · fastify · nestjs · koa</text>
+      <text class="s c" x="385" y="108">hapi · hono · http</text>
+      <rect class="b" x="530" y="50" width="250" height="76" rx="6"/>
+      <text class="h c" x="655" y="72">CLI attach</text>
+      <text class="s c" x="655" y="92">node --require preload</text>
+      <text class="s c" x="655" y="108">http.Server.emit patch, no code change</text>
+      <line class="ln" x1="385" y1="126" x2="385" y2="150" marker-end="url(#a1)"/>
+      <line class="ln" x1="655" y1="126" x2="655" y2="150" marker-end="url(#a1)"/>
+      <text class="lbl" x="520" y="142" text-anchor="middle">createNodeUI()</text>
+
+      <!-- core -->
+      <rect class="ctn2" x="260" y="150" width="520" height="452" rx="6"/>
+      <text class="h" x="276" y="172">@singhak/nodeui-core</text>
+
+      <rect class="b" x="280" y="185" width="220" height="60" rx="6"/>
+      <text class="h c" x="390" y="208">Guard</text>
+      <text class="s c" x="390" y="228">address · Host · Origin · token</text>
+      <rect class="b" x="540" y="185" width="220" height="60" rx="6"/>
+      <text class="h c" x="650" y="208">Router /nodeui/*</text>
+      <text class="s c" x="650" y="228">UI bundle · /api · /api/live</text>
+      <line class="ln" x1="500" y1="215" x2="540" y2="215" marker-end="url(#a1)"/>
+
+      <rect class="amb" x="280" y="270" width="480" height="96" rx="6"/>
+      <text class="amberT" x="292" y="290">Capture layer: data andar kaise aata hai</text>
+      <rect class="b" x="289" y="306" width="108" height="44" rx="4"/><text class="s c" x="343" y="325">request hook</text><text class="s c" x="343" y="341">+ ALS id</text>
+      <rect class="b" x="407" y="306" width="108" height="44" rx="4"/><text class="s c" x="461" y="325">http · fetch</text><text class="s c" x="461" y="341">wrap</text>
+      <rect class="b" x="525" y="306" width="108" height="44" rx="4"/><text class="s c" x="579" y="325">pg · mysql2</text><text class="s c" x="579" y="341">wrap</text>
+      <rect class="b" x="643" y="306" width="108" height="44" rx="4"/><text class="s c" x="697" y="325">console</text><text class="s c" x="697" y="341">+ errors</text>
+
+      <line class="ln" x1="520" y1="366" x2="520" y2="392" marker-end="url(#a1)"/>
+      <text class="lbl" x="528" y="384">record()</text>
+
+      <rect class="acc" x="280" y="392" width="480" height="120" rx="6"/>
+      <text class="h" x="292" y="412">Providers: bounded ring buffers, registry mein</text>
+      <g class="s">
+        <rect class="b" x="292" y="424" width="84" height="30" rx="4"/><text class="s c" x="334" y="443">requests</text>
+        <rect class="b" x="385" y="424" width="84" height="30" rx="4"/><text class="s c" x="427" y="443">outgoing</text>
+        <rect class="b" x="478" y="424" width="84" height="30" rx="4"/><text class="s c" x="520" y="443">queries</text>
+        <rect class="b" x="571" y="424" width="84" height="30" rx="4"/><text class="s c" x="613" y="443">errors</text>
+        <rect class="b" x="664" y="424" width="84" height="30" rx="4"/><text class="s c" x="706" y="443">logs</text>
+        <rect class="b" x="292" y="464" width="84" height="30" rx="4"/><text class="s c" x="334" y="483">memory</text>
+        <rect class="b" x="385" y="464" width="84" height="30" rx="4"/><text class="s c" x="427" y="483">cpu</text>
+        <rect class="b" x="478" y="464" width="84" height="30" rx="4"/><text class="s c" x="520" y="483">event-loop</text>
+        <rect class="b" x="571" y="464" width="84" height="30" rx="4"/><text class="s c" x="613" y="483">health</text>
+        <rect class="b" x="664" y="464" width="84" height="30" rx="4"/><text class="s c" x="706" y="483">routes·env</text>
+      </g>
+      <line class="ln" x1="520" y1="512" x2="520" y2="536" marker-end="url(#a1)"/>
+      <text class="lbl" x="528" y="528">sample</text>
+
+      <rect class="b" x="280" y="536" width="480" height="54" rx="6"/>
+      <text class="h c" x="520" y="557">Metrics engine</text>
+      <text class="s c" x="520" y="576">timeseries · route-metrics · alerts · diagnose · load-gen · profilers</text>
+
+      <!-- console reads providers -->
+      <polyline class="ln" points="760,215 772,215 772,440 762,440" marker-end="url(#a1)"/>
+      <text class="lbl" transform="rotate(-90 792 330)" x="792" y="330" text-anchor="middle">api reads</text>
+
+      <!-- left externals -->
+      <rect class="b" x="10" y="150" width="190" height="100" rx="6"/>
+      <text class="h c" x="105" y="178">Browser</text>
+      <text class="s c" x="105" y="198">React console (apps/ui)</text>
+      <text class="s c" x="105" y="216">REST + SSE</text>
+      <rect class="b" x="10" y="290" width="190" height="150" rx="6"/>
+      <text class="h c" x="105" y="312">nodeui CLI</text>
+      <rect class="acc" x="24" y="324" width="162" height="30" rx="4"/><text class="s c" x="105" y="343">dashboard</text>
+      <rect class="acc" x="24" y="362" width="162" height="30" rx="4"/><text class="s c" x="105" y="381">check (CI)</text>
+      <rect class="acc" x="24" y="400" width="162" height="30" rx="4"/><text class="s c" x="105" y="419">mcp (AI agent)</text>
+      <line class="ln" x1="200" y1="205" x2="280" y2="205" marker-end="url(#a1)"/>
+      <polyline class="ln" points="200,375 222,375 222,230 278,230" marker-end="url(#a1)"/>
+      <text class="lbl" x="206" y="196">HTTP</text>
+
+      <!-- right sinks -->
+      <text class="lbl" x="830" y="440">Bahar (opt-in)</text>
+      <rect class="b" x="830" y="450" width="150" height="64" rx="6"/>
+      <text class="h c" x="905" y="473">NDJSON journal</text><text class="s c" x="905" y="490">OTLP collector</text>
+      <rect class="b" x="830" y="522" width="150" height="40" rx="6"/>
+      <text class="s c" x="905" y="546">nodeui-runs.json</text>
+      <rect class="b" x="830" y="570" width="150" height="36" rx="6"/>
+      <text class="s c" x="905" y="593">/api/prometheus</text>
+      <line class="ln" x1="760" y1="482" x2="830" y2="482" marker-end="url(#a1)"/>
+      <line class="ln" x1="760" y1="542" x2="830" y2="542" marker-end="url(#a1)"/>
+      <line class="ln" x1="760" y1="588" x2="830" y2="588" marker-end="url(#a1)"/>
+    </svg>
+    </div>
+    <figcaption>Adapter (ya CLI attach) <code>createNodeUI()</code> chalata hai. Browser aur CLI sirf Guard se guzar kar console tak pahunchte hain. App ki traffic Capture layer se providers mein jaati hai, aur console API wahi providers padhta hai.</figcaption>
+  </figure>
+
+  <div class="cols">
+    <div class="card"><h3>Ek hi process</h3><p>Console aapke app ke process mein hi mount hota hai. Alag port, container ya cloud nahi lagta.</p></div>
+    <div class="card"><h3>Do raaste andar aane ke</h3><p>Adapter se (<code>app.use(middleware)</code>) ya CLI se (<code>nodeui attach -- node server.js</code>, code badle bina).</p></div>
+    <div class="card"><h3>Core framework-neutral</h3><p>Express, Fastify, Nest sab sirf patla wrapper hain. Poora kaam <code>@singhak/nodeui-core</code> karta hai.</p></div>
+    <div class="card"><h3>UI core ke andar bundled</h3><p>React app ka build <code>packages/core/static</code> mein jaata hai, isliye UI aur API ka version kabhi mismatch nahi hota.</p></div>
+  </div>
+</section>
+
+<!-- ============ FLOW ============ -->
+<section class="pane" id="flow" hidden>
+  <h2>Ek request ka safar</h2>
+  <p class="lead">Adapter ka middleware har request pehle dekhta hai. Wahin tay hota hai ki yeh aapke app ki request hai ya console ki.</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 990 560" role="img" aria-label="Middleware path dekhta hai. /nodeui ke bahar ki request recordAppRequest se guzar kar aapke handler tak jaati hai aur finish par providers mein record hoti hai. /nodeui ke andar ki request guard aur router se guzar kar SSE, panel JSON ya static file banti hai.">
+      <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+      <rect class="b" x="20" y="215" width="100" height="50" rx="6"/><text class="h c" x="70" y="244">Client</text>
+      <line class="ln" x1="120" y1="240" x2="150" y2="240" marker-end="url(#a2)"/>
+      <rect class="b" x="150" y="208" width="130" height="64" rx="6"/>
+      <text class="h c" x="215" y="233">middleware</text><text class="s c" x="215" y="251">(req, res, next)</text>
+      <line class="ln" x1="280" y1="240" x2="300" y2="240" marker-end="url(#a2)"/>
+      <polygon class="amb" points="370,196 440,240 370,284 300,240"/>
+      <text class="s c" x="370" y="238">/nodeui</text><text class="s c" x="370" y="252">ke andar?</text>
+      <polyline class="ln" points="370,196 370,110 468,110" marker-end="url(#a2)"/><text class="lbl" x="378" y="156">nahi</text>
+      <polyline class="ln" points="370,284 370,410 468,410" marker-end="url(#a2)"/><text class="lbl" x="378" y="350">haan</text>
+
+      <text class="lane" x="470" y="36">A · aapke app ki request</text>
+      <rect class="acc" x="470" y="79" width="150" height="62" rx="6"/>
+      <text class="h c" x="545" y="100">recordAppRequest</text><text class="s c" x="545" y="118">reserveId · hrtime</text><text class="s c" x="545" y="132">bind id (ALS)</text>
+      <line class="ln" x1="620" y1="110" x2="655" y2="110" marker-end="url(#a2)"/>
+      <rect class="b" x="655" y="82" width="150" height="56" rx="6"/>
+      <text class="h c" x="730" y="106">next()</text><text class="s c" x="730" y="124">aapka route handler</text>
+      <line class="ln" x1="805" y1="110" x2="840" y2="110" marker-end="url(#a2)"/>
+      <rect class="b" x="840" y="82" width="130" height="56" rx="6"/>
+      <text class="h c" x="905" y="106">res finish</text><text class="s c" x="905" y="124">status · ms · bytes</text>
+      <line class="ln dash" x1="730" y1="138" x2="730" y2="176" marker-end="url(#a2)"/>
+      <rect class="amb" x="640" y="176" width="180" height="54" rx="6"/>
+      <text class="s c" x="730" y="198">outgoing · query · log</text><text class="s c" x="730" y="214">same requestId se tag</text>
+      <line class="ln" x1="905" y1="138" x2="905" y2="176" marker-end="url(#a2)"/>
+      <rect class="acc" x="840" y="176" width="130" height="72" rx="6"/>
+      <text class="s c" x="905" y="196">record():</text><text class="s c" x="905" y="212">requests</text><text class="s c" x="905" y="226">route-metrics</text><text class="s c" x="905" y="240">timeseries</text>
+
+      <text class="lane" x="470" y="326">B · console ki request</text>
+      <rect class="b" x="470" y="377" width="140" height="66" rx="6"/>
+      <text class="h c" x="540" y="400">guard(req)</text><text class="s c" x="540" y="418">address, Host,</text><text class="s c" x="540" y="432">Origin, token</text>
+      <line class="ln" x1="540" y1="443" x2="540" y2="490" marker-end="url(#a2)"/><text class="lbl" x="548" y="470">fail</text>
+      <rect class="bad" x="470" y="490" width="140" height="34" rx="6"/><text class="s c" x="540" y="511">403 / 401 JSON</text>
+      <line class="ln" x1="610" y1="410" x2="650" y2="410" marker-end="url(#a2)"/><text class="lbl" x="630" y="402" text-anchor="middle">ok</text>
+      <rect class="b" x="650" y="388" width="110" height="44" rx="6"/><text class="h c" x="705" y="415">path match</text>
+      <polyline class="ln" points="760,410 780,410 780,352 798,352" marker-end="url(#a2)"/>
+      <line class="ln" x1="760" y1="410" x2="798" y2="410" marker-end="url(#a2)"/>
+      <polyline class="ln" points="780,410 780,468 798,468" marker-end="url(#a2)"/>
+      <rect class="acc" x="800" y="330" width="180" height="44" rx="6"/><text class="s c" x="890" y="350">/api/live</text><text class="s c" x="890" y="366">SSE push stream</text>
+      <rect class="acc" x="800" y="388" width="180" height="44" rx="6"/><text class="s c" x="890" y="408">/api/&lt;panel&gt;</text><text class="s c" x="890" y="424">read → mask → JSON</text>
+      <rect class="acc" x="800" y="446" width="180" height="44" rx="6"/><text class="s c" x="890" y="466">baaki sab</text><text class="s c" x="890" y="482">static UI file</text>
+    </svg>
+    </div>
+    <figcaption>Console ki request kabhi <code>recordAppRequest</code> se nahi guzarti, isliye console khud apni metrics mein nahi ginta. NodeUI band ho (<code>enabled=false</code>) to middleware sirf <code>next()</code> hota hai.</figcaption>
+  </figure>
+
+  <ul class="steps">
+    <li><div><b>Request aati hai, id milti hai</b><span><code>reserveId()</code> ek requestId deta hai aur <code>bindRequestId</code> use req se jodta hai. <code>runWithRequestId</code> baaki poori async chain ko wahi id deta hai.</span></div></li>
+    <li><div><b>Handler chalta hai</b><span>Handler ke andar jo bhi outgoing call, SQL query ya <code>console.log</code> hota hai, wo wahi requestId uthata hai (<code>AsyncLocalStorage</code>).</span></div></li>
+    <li><div><b>Response khatam hone par record</b><span><code>res.on('finish')</code> par duration, status aur bytes nikalkar timeSeries, routeMetrics, requestsProvider aur metricsProvider mein jaate hain. Beech mein client ruk gaya (<code>close</code>) to wo <code>requestAborted</code> ginta hai.</span></div></li>
+  </ul>
+</section>
+
+<!-- ============ CAPTURE ============ -->
+<section class="pane" id="capture" hidden>
+  <h2>Data kaise pakadta hai</h2>
+  <p class="lead">NodeUI aapke code mein <code>trackRequest()</code> jaisi calls nahi lagwata. Woh Node ke built-in jagahon par hook lagata hai.</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 990 460" role="img" aria-label="Paanch tarah ka data: incoming request, outgoing HTTP, SQL, console logs aur errors. Har ek ke liye alag hook, alag provider aur alag panel. Neeche AsyncLocalStorage ka requestId sabko ek request se jodta hai.">
+      <defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+      <text class="lbl" x="20" y="28">Kya hota hai</text><text class="lbl" x="290" y="28">Hook: NodeUI kya wrap karta hai</text><text class="lbl" x="650" y="28">Provider</text><text class="lbl" x="830" y="28">Panel</text>
+
+      <g>
+        <rect class="b" x="20" y="46" width="230" height="54" rx="6"/><text class="h c" x="135" y="68">Incoming request</text><text class="s c" x="135" y="86">aapke routes</text>
+        <rect class="amb" x="290" y="46" width="320" height="54" rx="6"/><text class="s c" x="450" y="68">adapter middleware (next())</text><text class="s c" x="450" y="86">CLI: http.Server.emit patch</text>
+        <rect class="acc" x="650" y="46" width="150" height="54" rx="6"/><text class="h c" x="725" y="68">requests</text><text class="s c" x="725" y="86">+ route-metrics</text>
+        <rect class="b" x="830" y="46" width="140" height="54" rx="6"/><text class="s c" x="900" y="68">Requests</text><text class="s c" x="900" y="86">Endpoints · Metrics</text>
+      </g>
+      <g>
+        <rect class="b" x="20" y="112" width="230" height="54" rx="6"/><text class="h c" x="135" y="134">Outgoing HTTP</text><text class="s c" x="135" y="152">axios · got · fetch</text>
+        <rect class="amb" x="290" y="112" width="320" height="54" rx="6"/><text class="s c" x="450" y="134">http.request / https.request wrap</text><text class="s c" x="450" y="152">+ undici diagnostics_channel</text>
+        <rect class="acc" x="650" y="112" width="150" height="54" rx="6"/><text class="h c" x="725" y="143">outgoing</text>
+        <rect class="b" x="830" y="112" width="140" height="54" rx="6"/><text class="s c" x="900" y="143">Outgoing</text>
+      </g>
+      <g>
+        <rect class="b" x="20" y="178" width="230" height="54" rx="6"/><text class="h c" x="135" y="200">SQL query</text><text class="s c" x="135" y="218">pg · mysql2</text>
+        <rect class="amb" x="290" y="178" width="320" height="54" rx="6"/><text class="s c" x="450" y="200">Client.prototype query / execute wrap</text><text class="s c" x="450" y="218">ORM: server.recordQuery()</text>
+        <rect class="acc" x="650" y="178" width="150" height="54" rx="6"/><text class="h c" x="725" y="209">queries</text>
+        <rect class="b" x="830" y="178" width="140" height="54" rx="6"/><text class="s c" x="900" y="200">Queries</text><text class="s c" x="900" y="218">slow · N+1</text>
+      </g>
+      <g>
+        <rect class="b" x="20" y="244" width="230" height="54" rx="6"/><text class="h c" x="135" y="266">console.* / logger</text><text class="s c" x="135" y="284">logger → addLogSource()</text>
+        <rect class="amb" x="290" y="244" width="320" height="54" rx="6"/><text class="s c" x="450" y="266">console.debug/info/log/warn/error tee</text><text class="s c" x="450" y="284">entries ring buffer mein bhi jaati hain</text>
+        <rect class="acc" x="650" y="244" width="150" height="54" rx="6"/><text class="h c" x="725" y="275">logs</text>
+        <rect class="b" x="830" y="244" width="140" height="54" rx="6"/><text class="s c" x="900" y="275">Logs</text>
+      </g>
+      <g>
+        <rect class="b" x="20" y="310" width="230" height="54" rx="6"/><text class="h c" x="135" y="332">Throw / crash</text><text class="s c" x="135" y="350">unhandled errors</text>
+        <rect class="amb" x="290" y="310" width="320" height="54" rx="6"/><text class="s c" x="450" y="332">uncaughtExceptionMonitor</text><text class="s c" x="450" y="350">adapter errorHandler → recordError()</text>
+        <rect class="acc" x="650" y="310" width="150" height="54" rx="6"/><text class="h c" x="725" y="341">errors</text>
+        <rect class="b" x="830" y="310" width="140" height="54" rx="6"/><text class="s c" x="900" y="332">Errors</text><text class="s c" x="900" y="350">fingerprint groups</text>
+      </g>
+      <g class="ln">
+        <line x1="250" y1="73" x2="288" y2="73" marker-end="url(#a3)"/><line x1="610" y1="73" x2="648" y2="73" marker-end="url(#a3)"/><line x1="800" y1="73" x2="828" y2="73" marker-end="url(#a3)"/>
+        <line x1="250" y1="139" x2="288" y2="139" marker-end="url(#a3)"/><line x1="610" y1="139" x2="648" y2="139" marker-end="url(#a3)"/><line x1="800" y1="139" x2="828" y2="139" marker-end="url(#a3)"/>
+        <line x1="250" y1="205" x2="288" y2="205" marker-end="url(#a3)"/><line x1="610" y1="205" x2="648" y2="205" marker-end="url(#a3)"/><line x1="800" y1="205" x2="828" y2="205" marker-end="url(#a3)"/>
+        <line x1="250" y1="271" x2="288" y2="271" marker-end="url(#a3)"/><line x1="610" y1="271" x2="648" y2="271" marker-end="url(#a3)"/><line x1="800" y1="271" x2="828" y2="271" marker-end="url(#a3)"/>
+        <line x1="250" y1="337" x2="288" y2="337" marker-end="url(#a3)"/><line x1="610" y1="337" x2="648" y2="337" marker-end="url(#a3)"/><line x1="800" y1="337" x2="828" y2="337" marker-end="url(#a3)"/>
+      </g>
+      <rect class="amb" x="20" y="384" width="950" height="58" rx="6"/>
+      <text class="amberT" x="36" y="406">AsyncLocalStorage requestId</text>
+      <text class="s" x="36" y="426">Row 2 se 5 ke records usi id se tag hote hain jo row 1 ki request ko mili thi, isliye Request drawer mein poora waterfall ban jaata hai.</text>
+    </svg>
+    </div>
+    <figcaption>Har source ka apna hook aur apna provider hai. Sab provider bounded ring buffer hain, to memory kabhi bekaar nahi badhti.</figcaption>
+  </figure>
+  <div class="cols">
+    <div class="card"><h3>capture: 'always' (default)</h3><p>Hooks startup se lagte hain. Problem ke baad console kholo to pehle ka data mil jaata hai.</p></div>
+    <div class="card"><h3>capture: 'lazy'</h3><p>Hooks tabhi lagte hain jab koi panel khula ho, aur <code>inactivityTimeoutMs</code> (60s) ke baad hat jaate hain. Console band ho to zero cost.</p></div>
+    <div class="card"><h3>Dusre tools ke saath</h3><p>OpenTelemetry, Sentry ya APM ne upar wrap kiya ho to NodeUI unka wrapper todta nahi. Wrapper apni jagah par ho to hi hatata hai, warna passthrough ban jaata hai.</p></div>
+  </div>
+</section>
+
+<!-- ============ LIVE ============ -->
+<section class="pane" id="live" hidden>
+  <h2>UI aur live data</h2>
+  <p class="lead">UI ek React single-page app hai. Woh jis URL se serve hui hai usi se <code>&lt;prefix&gt;/api</code> nikal leti hai, isliye kisi bhi path prefix par chalti hai.</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 990 430" role="img" aria-label="Browser pehle config padhta hai, phir ek SSE stream kholta hai jo har 2 second panel data push karta hai. Badalne wale kaam ke liye pehle single-use nonce maanga jaata hai, phir wahi nonce POST ke saath bheja jaata hai.">
+      <defs><marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+      <rect class="b" x="90" y="14" width="160" height="32" rx="6"/><text class="h c" x="170" y="35">Browser (React)</text>
+      <rect class="acc" x="740" y="14" width="160" height="32" rx="6"/><text class="h c" x="820" y="35">NodeUI core</text>
+      <line class="life" x1="170" y1="46" x2="170" y2="412"/><line class="life" x1="820" y1="46" x2="820" y2="412"/>
+
+      <text class="lane" x="20" y="86">boot</text>
+      <line class="ln" x1="172" y1="84" x2="818" y2="84" marker-end="url(#a4)"/><text class="lbl" x="495" y="76" text-anchor="middle">GET /api/config</text>
+      <line class="ln dash" x1="818" y1="112" x2="172" y2="112" marker-end="url(#a4)"/><text class="lbl" x="495" y="104" text-anchor="middle">panels · plugins · version (sidebar yahin se banta hai)</text>
+
+      <text class="lane" x="20" y="166">live</text>
+      <line class="ln" x1="172" y1="164" x2="818" y2="164" marker-end="url(#a4)"/><text class="lbl" x="495" y="156" text-anchor="middle">GET /api/live?panels=overview,metrics (ek hi EventSource)</text>
+      <line class="ln dash" x1="818" y1="204" x2="172" y2="204" marker-end="url(#a4)"/><text class="lbl" x="495" y="196" text-anchor="middle">har 2s: { panel, envelope }  (secrets masked)</text>
+      <line class="ln dash" x1="818" y1="232" x2="172" y2="232" marker-end="url(#a4)"/><text class="lbl" x="495" y="224" text-anchor="middle">... aur har panel ke liye, jab tak stream khula hai</text>
+
+      <text class="lane" x="20" y="306">action</text>
+      <line class="ln" x1="172" y1="304" x2="818" y2="304" marker-end="url(#a4)"/><text class="lbl" x="495" y="296" text-anchor="middle">POST /api/confirmations</text>
+      <line class="ln dash" x1="818" y1="332" x2="172" y2="332" marker-end="url(#a4)"/><text class="lbl" x="495" y="324" text-anchor="middle">{ nonce, ttl 60s }</text>
+      <line class="ln" x1="172" y1="372" x2="818" y2="372" marker-end="url(#a4)"/><text class="lbl" x="495" y="364" text-anchor="middle">POST /api/heap-snapshot  +  header x-nodeui-confirm: nonce</text>
+      <line class="ln dash" x1="818" y1="400" x2="172" y2="400" marker-end="url(#a4)"/><text class="lbl" x="495" y="392" text-anchor="middle">200 ok (nonce use ho gaya; dobara bhejo to reject)</text>
+    </svg>
+    </div>
+    <figcaption>Panels ek shared <code>EventSource</code> par aate hain. Agar stream na bane (purane browser, tests) to UI REST polling par aa jaati hai.</figcaption>
+  </figure>
+  <div class="cols">
+    <div class="card"><h3>Ek stream, kai panel</h3><p><code>live.ts</code> ek hi EventSource rakhta hai aur subscribe hue panel ids ka union maangta hai. Naya panel khule to stream ek baar dobara khulti hai. Disconnect par backoff, max 30s.</p></div>
+    <div class="card"><h3>Server ki taraf se limit</h3><p>Ek saath khuli streams ki limit <code>maxSseClients</code> hai. Zyada hone par <code>429 too-many-streams</code> milta hai.</p></div>
+    <div class="card"><h3>Routing</h3><p>Hash router (<code>router.ts</code>). Filters URL mein rehte hain, to link share karne par wahi view khulta hai.</p></div>
+    <div class="card"><h3>Views</h3><p>Overview, Metrics, Load tests, Profiler, Alerts, Endpoints, Requests, Outgoing, Queries, Errors, Logs, Env, Routes, Runtime, aur aapke plugin panels (<code>GenericView</code>).</p></div>
+  </div>
+</section>
+
+<!-- ============ METRICS ============ -->
+<section class="pane" id="metrics" hidden>
+  <h2>Metrics, load tests, alerts</h2>
+  <p class="lead">Yeh "local Grafana" wala hissa hai. Har request ke finish par ek hi time-series engine bharta hai, aur uske upar alerts, diagnose, load tests aur CI check baithte hain.</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 990 430" role="img" aria-label="Request finish se TimeSeries slots bharte hain, jinse metrics charts, alerts, diagnose aur prometheus nikalte hain. Neeche load test ek saved run banata hai, jis par baseline compare aur CI check chalta hai.">
+      <defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+      <rect class="b" x="20" y="145" width="120" height="50" rx="6"/><text class="h c" x="80" y="168">res finish</text><text class="s c" x="80" y="184">+ sampled gauges</text>
+      <line class="ln" x1="140" y1="170" x2="190" y2="170" marker-end="url(#a5)"/>
+      <rect class="acc" x="190" y="120" width="190" height="100" rx="6"/>
+      <text class="h c" x="285" y="144">TimeSeries slots</text><text class="s c" x="285" y="164">1s × 1 ghanta</text><text class="s c" x="285" y="180">10s × 8 ghante</text><text class="s c" x="285" y="196">latency histogram</text>
+      <line class="ln" x1="380" y1="170" x2="410" y2="170"/>
+      <line class="ln" x1="410" y1="49" x2="410" y2="289"/>
+      <line class="ln" x1="410" y1="49" x2="438" y2="49" marker-end="url(#a5)"/><line class="ln" x1="410" y1="129" x2="438" y2="129" marker-end="url(#a5)"/><line class="ln" x1="410" y1="209" x2="438" y2="209" marker-end="url(#a5)"/><line class="ln" x1="410" y1="289" x2="438" y2="289" marker-end="url(#a5)"/>
+      <rect class="b" x="440" y="20" width="200" height="58" rx="6"/><text class="h c" x="540" y="44">Metrics view</text><text class="s c" x="540" y="62">charts · heatmap · heap trend</text>
+      <rect class="b" x="440" y="100" width="200" height="58" rx="6"/><text class="h c" x="540" y="124">Alerts rules</text><text class="s c" x="540" y="142">metric · threshold · forSeconds</text>
+      <rect class="b" x="440" y="180" width="200" height="58" rx="6"/><text class="h c" x="540" y="204">Diagnose</text><text class="s c" x="540" y="222">rule-based, history padhta hai</text>
+      <rect class="b" x="440" y="260" width="200" height="58" rx="6"/><text class="h c" x="540" y="284">/api/prometheus</text><text class="s c" x="540" y="302">text format</text>
+      <line class="ln" x1="640" y1="129" x2="700" y2="129" marker-end="url(#a5)"/><line class="ln" x1="640" y1="209" x2="700" y2="209" marker-end="url(#a5)"/><line class="ln" x1="640" y1="289" x2="700" y2="289" marker-end="url(#a5)"/>
+      <rect class="amb" x="700" y="100" width="270" height="58" rx="6"/><text class="s c" x="835" y="124">banner har view par</text><text class="s c" x="835" y="142">+ chart par annotation marker</text>
+      <rect class="acc" x="700" y="180" width="270" height="58" rx="6"/><text class="s c" x="835" y="204">Diagnosis card</text><text class="s c" x="835" y="222">(Overview par, MCP tool bhi)</text>
+      <rect class="b" x="700" y="260" width="270" height="58" rx="6"/><text class="s c" x="835" y="284">aapka scraper / Grafana</text><text class="s c" x="835" y="302">(opt-in use)</text>
+
+      <text class="lane" x="20" y="352">load test</text>
+      <rect class="b" x="20" y="364" width="190" height="52" rx="6"/><text class="h c" x="115" y="386">Load generator</text><text class="s c" x="115" y="404">worker thread</text>
+      <line class="ln" x1="210" y1="390" x2="250" y2="390" marker-end="url(#a5)"/>
+      <rect class="acc" x="250" y="364" width="190" height="52" rx="6"/><text class="h c" x="345" y="386">Saved run</text><text class="s c" x="345" y="404">run-store json, 0600</text>
+      <line class="ln" x1="440" y1="390" x2="480" y2="390" marker-end="url(#a5)"/>
+      <rect class="b" x="480" y="364" width="210" height="52" rx="6"/><text class="h c" x="585" y="386">Baseline + compare</text><text class="s c" x="585" y="404">better / worse delta (UI)</text>
+      <line class="ln" x1="690" y1="390" x2="730" y2="390" marker-end="url(#a5)"/>
+      <rect class="amb" x="730" y="364" width="240" height="52" rx="6"/><text class="h c" x="850" y="386">nodeui check --run latest</text><text class="s c" x="850" y="404">exit 0 pass · 1 fail · 2 no data</text>
+    </svg>
+    </div>
+    <figcaption>Load generator app ke apne port par traffic bhejta hai, to woh bhi usi time-series mein dikhta hai. Chaaron outputs (charts, alerts, diagnose, check) ek hi history padhte hain.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ SAFETY ============ -->
+<section class="pane" id="safety" hidden>
+  <h2>Safety: console kab aur kise dikhta hai</h2>
+  <p class="lead">NodeUI app ke andar chalta hai, isliye default sab kuch band rakhta hai. Guard ke checks isi order mein chalte hain.</p>
+  <ol class="steps">
+    <li><div><b>Activation (startup par ek baar)</b><span><code>NODEUI_ENABLED=true/false</code> sabse upar. Warna <code>NODE_ENV!=='production'</code> ho tabhi ON. Production mein bina override ke band (fail-closed).</span></div></li>
+    <li><div><b>Remote address</b><span>Loopback mode mein sirf <code>127.x</code>, <code>::1</code> allowed. Docker ke liye <code>allowedRemoteAddresses</code> (IP ya IPv4 CIDR).</span></div></li>
+    <li><div><b>Proxy headers</b><span><code>X-Forwarded-*</code>, <code>Forwarded</code>, <code>X-Real-IP</code> mile to reject, jab tak <code>trustProxy</code> na ho.</span></div></li>
+    <li><div><b>Host header</b><span>Loopback naam hi chalega (DNS-rebinding se bachav). Dusra naam <code>allowedHosts</code> mein dalna padta hai.</span></div></li>
+    <li><div><b>Origin header</b><span>Cross-site call reject, jab tak Origin usi Host ka na ho ya <code>allowedOrigins</code> mein na ho.</span></div></li>
+    <li><div><b>Token (optional)</b><span>Bearer, <code>x-nodeui-token</code>, cookie ya <code>?token=</code>. Compare timing-safe hota hai. Query token mile to cookie set hokar redirect ho jaata hai.</span></div></li>
+  </ol>
+  <div class="cols">
+    <div class="card"><h3>Badalne wale kaam par nonce</h3><p>Heap snapshot, profilers jaise POST kaam ke liye pehle <code>/confirmations</code> se single-use nonce lena padta hai (TTL 60s). Header: <code>x-nodeui-confirm</code>.</p></div>
+    <div class="card"><h3>Secrets masked</h3><p><code>maskSecrets</code> har panel output par chalta hai: tokens, keys, passwords, <code>DATABASE_URL</code> jaise names <code>[REDACTED]</code> ho jaate hain. Request headers mein credentials hamesha redacted.</p></div>
+    <div class="card"><h3>Replay ka target fixed</h3><p>Replay sirf app ke apne socket address par jaata hai, jo real request se seekha gaya. User sirf path de sakta hai.</p></div>
+    <div class="card"><h3>Host app ko kabhi nahi todta</h3><p>Samplers aur driver patches try/catch ke andar hain. Fail hone par console band, app chalta rehta hai.</p></div>
+  </div>
+</section>
+
+<!-- ============ PACKAGES ============ -->
+<section class="pane" id="packages" hidden>
+  <h2>Packages (monorepo)</h2>
+  <p class="lead">npm workspaces: <code>apps/*</code> aur <code>packages/*</code>. Adapters patle hain, asli kaam core mein hai.</p>
+  <div class="scroll" style="padding:0">
+  <table>
+    <thead><tr><th>Package</th><th>Kaam</th></tr></thead>
+    <tbody>
+      <tr><td>packages/core</td><td>Engine: server, guard, providers, registry, safety, SSE, static UI. UI ka build <code>static/</code> mein yahin rehta hai.</td></tr>
+      <tr><td>packages/express</td><td><code>nodeui()</code> → <code>{ middleware, server, addLogSource, errorHandler }</code>. Core ko re-export karta hai.</td></tr>
+      <tr><td>packages/fastify, koa, hapi, hono, http</td><td>Apne framework ka plugin ya middleware, wahi core ke upar.</td></tr>
+      <tr><td>packages/nestjs</td><td>Dynamic module + service + interceptor + logger (<code>nodeui.module.ts</code>, <code>nodeui.interceptor.ts</code>).</td></tr>
+      <tr><td>packages/cli</td><td><code>attach</code> (preload), <code>dashboard</code>, <code>mcp</code>, <code>check</code>, <code>digest</code>.</td></tr>
+      <tr><td>apps/ui</td><td>React + Vite console. Private workspace; build core/static mein jaata hai, CI stale bundle par fail karta hai.</td></tr>
+      <tr><td>apps/demo-express, demo-nestjs</td><td>Sandbox servers jisse feature check hote hain.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="cols">
+    <div class="card"><h3>Build order</h3><p>core → express → fastify → nestjs → koa → hapi → hono → http → cli → ui (root <code>npm run build</code>).</p></div>
+    <div class="card"><h3>Tests</h3><p>Har package mein vitest. Core mein e2e, hardening, otel-compat aur persistence tests bhi hain.</p></div>
+    <div class="card"><h3>Docs aur CI</h3><p><code>docs/</code> VitePress site. <code>.github/workflows</code>: ci, docs, release.</p></div>
+  </div>
+</section>
+
+<!-- ============ Q&A ============ -->
+<section class="pane" id="qa" hidden>
+  <h2>Feature Q&amp;A</h2>
+  <p class="lead">Koi bhi feature pooche to yahan search karo. Har entry mein hai: kya karta hai, kaise karta hai, aur code kahan hai.</p>
+  <div class="qa-tools">
+    <input id="qa-search" type="search" placeholder="Search: n+1, heap, alert, replay, mcp..." aria-label="Feature search">
+    <div class="chips" id="qa-groups" role="group" aria-label="Group filter"></div>
+  </div>
+  <div class="qa-list" id="qa-list"></div>
+  <div class="empty" id="qa-empty" hidden>Koi feature match nahi hua.</div>
+</section>
+</div>
+
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('nav.tabs button'));
+  var panes = Array.prototype.slice.call(document.querySelectorAll('section.pane'));
+  function show(id) {
+    if (!document.getElementById(id)) id = 'overview';
+    tabs.forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.tab === id)); });
+    panes.forEach(function (p) { p.hidden = p.id !== id; });
+    try { history.replaceState(null, '', '#' + id); } catch (e) {}
+  }
+  tabs.forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.tab); window.scrollTo(0, 0); }); });
+  show((location.hash || '').replace('#', '') || 'overview');
+
+  var G = { watch: 'Dekhna', analyze: 'Analyze', tools: 'Integrations', safe: 'Safety' };
+  var F = [
+    ['Health', 'watch', 'health', 'Process aur event-loop ki sehat, plus aapke dependency checks (DB ping, cache ping).', 'Health provider process aur event-loop se status nikalta hai. Aap checks dete ho; reject, throw ya false = unhealthy.', 'providers/health.ts'],
+    ['Requests', 'watch', 'requests', 'Har app request ki row: method, path, status, ms, ip, matched route (/users/:id).', 'res finish par recordAppRequest requests provider mein likhta hai. Ring buffer, default 500. captureRequestDetail se query, headers aur size-capped bodies bhi (credentials hamesha REDACTED).', 'server.ts recordAppRequest, providers/requests.ts, request-detail.ts'],
+    ['Request waterfall', 'watch', 'requests', 'Ek request ke peeche ki queries, outgoing calls aur logs ek timeline mein.', 'AsyncLocalStorage ka requestId teeno providers ke records par lagta hai. Drawer usi id se filter karke waterfall banata hai.', 'context.ts, apps/ui views/Waterfall.tsx'],
+    ['Replay aur Copy as curl', 'watch', 'requests', 'Captured request dubara bhejna (edit karke bhi), ya curl, fetch, autocannon command copy karna.', 'Replay request app ke apne socket address par bhejta hai. Yeh address real request se seekha jaata hai, user input se kabhi nahi; sirf path edit hota hai. Snippets UI mein bante hain.', 'replay.ts, ReplayPanel.tsx, snippets.ts'],
+    ['Outgoing calls', 'watch', 'outgoing', 'App se bahar jaane wali HTTP calls, duration aur status ke saath.', 'http.request / https.request wrap hota hai (axios, got, node-fetch), aur global fetch ke liye undici diagnostics_channel subscribe. Dusre wrapper upar ho to unwrap safe tareeke se hota hai.', 'providers/outgoing.ts'],
+    ['Queries', 'watch', 'queries', 'SQL statements, duration, rows. Slow statements aur N+1 suspects flag hote hain. "By statement" view normalized statement ke hisaab se group karta hai.', 'pg Client aur mysql2 Connection prototype wrap hote hain. Slow threshold slowQueryMs, default 100. N+1 = ek hi statement ek hi request mein baar baar. Parameters record nahi hote. Dusre ORM ke liye server.recordQuery().', 'providers/queries.ts'],
+    ['Errors', 'watch', 'errors', 'Failures type, message shape aur origin ke hisaab se grouped, count aur stack ke saath.', 'Fingerprint = error type + message (numbers/ids collapse) + top frames ke function aur file (line nahi, edit se group na toote). Process-level errors uncaughtExceptionMonitor se dekhe jaate hain, Node ka crash behaviour nahi badalta. Express mein errorHandler.', 'providers/errors.ts'],
+    ['Logs', 'watch', 'logs', 'Live console output, level filter ke saath.', 'console.debug/info/log/warn/error ko wrap karke entries ring buffer (logSize, default 500) mein tee hoti hain. Apna logger ho to addLogSource().', 'providers/logs.ts'],
+    ['Environment', 'watch', 'env', 'Env vars aur aapka config object.', 'process.env snapshot (ya env option). Secret jaise key names [REDACTED] ho jaate hain.', 'providers/env.ts, safety.ts'],
+    ['Routes', 'watch', 'routes', 'App ke saare method + path + handler.', 'Express mein router.stack recursively walk hota hai (req.app._router, Express internals par tika). Baaki adapters server.setRoutes(source) se list dete hain.', 'providers/routes.ts'],
+    ['Memory, CPU, Event-loop', 'watch', 'runtime', 'RSS, heap, CPU %, aur event-loop lag.', 'Tracked setInterval samplers. Event-loop lag = timer kitna late chala. Inactivity ke baad samplers ruk jaate hain.', 'providers/memory.ts, cpu.ts, event-loop.ts, sampler.ts'],
+    ['Heap snapshot', 'watch', 'runtime', 'Ek click mein V8 heap snapshot file.', 'POST /api/heap-snapshot, confirmation nonce ke saath. File private directory mein (heapSnapshotDir ya OS temp ke andar).', 'providers/heap-snapshot.ts'],
+    ['Startup timeline', 'watch', 'runtime', 'Startup ke phases kitne time ke the.', 'server.mark("label") StartupTracker mein time store karta hai.', 'providers/startup-tracker.ts'],
+
+    ['Metrics history', 'analyze', 'metrics', 'p50/p95/p99, rps, error rate, memory ka graph. Range picker, drag-to-zoom, shared crosshair.', 'TimeSeries slots: 1s granularity 1 ghanta, 10s granularity 8 ghante. Latency log-spaced histogram (0.1ms se ~80s, ~7% worst-case error), jo mergeable hai.', 'providers/timeseries.ts'],
+    ['Latency heatmap', 'analyze', 'metrics', 'Time x latency ka grid; percentiles jo cheez chhupa dete hain (jaise ek dheema route) wo dikh jaati hai.', 'Wahi histogram slots ko time x latency bands mein badalkar bana hota hai.', 'timeseries.ts, charts/Heatmap.tsx'],
+    ['Heap leak hint', 'analyze', 'metrics', '"Heap lagataar badh raha hai" ka sanket.', 'GC se heap saw-tooth hota hai, to average nahi, har bucket ka minimum (lower envelope) dekha jaata hai. Lamba window, saaf growth, achha linear fit aur floor kabhi wapas na gire, tab hi suspect.', 'heap-trend.ts'],
+    ['Endpoints', 'analyze', 'metrics', 'Route ke hisaab se p50/p95/p99, 5xx rate, throughput, aur total time mein hissa.', 'Route key matched pattern se, warna numeric/uuid/objectid segments collapse karke (/users/1 aur /users/2 ek). Cardinality capped, random URLs memory nahi badhate.', 'providers/route-metrics.ts'],
+    ['Load tests aur runs', 'analyze', 'tools', 'App par load daalo ya autocannon/k6/wrk record karo; run save, baseline pin, compare.', 'Load generator worker thread mein chalta hai (app ka event loop block nahi hota) aur app ke apne port par traffic bhejta hai. Run run-store ki JSON file mein (atomic write, 0600) to restart ke baad bhi baseline rehta hai.', 'providers/load-gen.ts, run-store.ts'],
+    ['CPU profiler', 'analyze', 'tools', 'Load ke dauran CPU profile, flame graph aur top functions.', 'Inspector protocol se, --inspect flag ki zarurat nahi. Start karna mutating action hai, to nonce chahiye. Raw V8 profile pruned call tree mein badalta hai.', 'providers/cpu-profile.ts, charts/FlameGraph.tsx'],
+    ['Heap allocation profiler', 'analyze', 'tools', 'Kaun si functions memory allocate kar rahi hain.', 'Inspector ka sampling heap profiler, ~32 KB allocate par ek sample (kam overhead). Result allocation tree aur top allocators.', 'providers/heap-profile.ts'],
+    ['Alerts', 'analyze', 'tools', 'Threshold rules jaise p99 > 300ms.', 'Rule = metric + threshold + forSeconds. Condition forSeconds tak tike to fire, hatte hi resolve. Latency/error rules ko kuch requests chahiye, to idle app kabhi breach nahi karta. Metrics: p50, p95, p99, maxMs, errorRate, rps, loopP99, cpu, heapMb, rssMb.', 'providers/alerts.ts'],
+    ['Diagnose', 'analyze', 'metrics', 'Overview par "shayad yeh problem hai" card.', 'Rule-based, Clinic Doctor ki tarah recent metrics history padhta hai aur problem ka class batata hai. Pure function hai, to test karna aasaan.', 'providers/diagnose.ts, views/DiagnoseCard.tsx'],
+    ['Annotations', 'analyze', 'metrics', 'Chart par marker (deploy, note, load test start, alert).', 'server.annotate("label") time-stamped marker store karta hai.', 'annotations.ts'],
+
+    ['Persistence', 'tools', 'persist', 'Restart ke baad bhi recent requests, outgoing, queries, errors.', 'persist option ya NODEUI_PERSIST_FILE. NDJSON journal, masked, 0600, maxBytes (default 5 MiB) par rotate. Startup par providers mein restore. Is file ko version control se bahar rakho.', 'persistence.ts'],
+    ['OTLP export', 'tools', 'otlp', 'Requests, outgoing aur queries ko OTLP/HTTP JSON spans ki tarah collector ko.', 'otlp option ya NODEUI_OTLP_ENDPOINT. Default band. Non-local endpoint ho to warning chhapta hai kyunki masked data bhi machine se bahar jaata hai.', 'otlp.ts'],
+    ['Prometheus', 'tools', 'prom', 'Text-format metrics scrape ke liye.', 'GET /api/prometheus, wahi timeseries se banta hai.', 'server.ts, timeseries.ts'],
+    ['Plugin panels', 'tools', 'plugins', 'Apna panel (queue, cache stats, feature flags).', 'options.plugins mein NodeUIProvider do. /config mein plugin list jaati hai, UI sidebar ke custom group mein GenericView dikhata hai.', 'server.ts plugins, views/GenericView.tsx'],
+    ['CLI attach', 'tools', 'cli', 'Bina code badle console jodna.', 'node --require preload.js: http.Server aur https.Server ka emit wrap hota hai. "request" event par console ka path ho to ui.handle, warna recorder aur original handler.', 'cli/src/attach.ts, preload.ts'],
+    ['CLI dashboard', 'tools', 'cli', 'Kai chalte services ke consoles ek page par.', 'nodeui dashboard name=url... Default port 4000, loopback par. core ka uiAssetsDir() use karta hai.', 'cli/src/dashboard.ts'],
+    ['MCP server', 'tools', 'cli', 'AI agent ko console ka data padhne dena.', 'nodeui mcp name=url... stdio par. Read-only tools: overview, diagnose, errors, requests, request, queries, outgoing, logs, routes.', 'cli/src/mcp.ts'],
+    ['nodeui check (CI)', 'tools', 'cli', 'Latency ya error budget tootne par build fail.', 'Last N seconds ya saved run check karta hai. Exit 0 pass, 1 fail, 2 nothing to check. --max-p99, --max-error-rate, --max-regression waghera.', 'cli/src/check.ts'],
+
+    ['Production fail-closed', 'safe', 'safety', 'Production mein console apne aap band.', 'resolveActivation: NODEUI_ENABLED pehle; warna NODE_ENV !== production ho tabhi ON.', 'safety.ts'],
+    ['Guard', 'safe', 'safety', 'Console tak kaun pahunch sakta hai.', 'Address, proxy headers, Host, Origin, optional token. Details Safety tab mein.', 'guard.ts'],
+    ['Confirmation nonce', 'safe', 'safety', 'Kisi site se chhupkar heap snapshot ya profiler start na ho.', 'POST /confirmations single-use nonce deta hai (ttl default 60s). Mutating call header x-nodeui-confirm ke saath aati hai aur consume() ek hi baar chalta hai.', 'confirmations.ts'],
+    ['Secret masking', 'safe', 'safety', 'Secrets kahin nahi dikhte.', 'maskSecrets (SECRET_KEY_PATTERN) har panel output par; log lines mein token=abc → token=[REDACTED].', 'safety.ts']
+  ];
+
+  var list = document.getElementById('qa-list');
+  var search = document.getElementById('qa-search');
+  var chipBox = document.getElementById('qa-groups');
+  var empty = document.getElementById('qa-empty');
+  var active = 'all';
+
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = text; return n; }
+  function row(k, v) { var d = el('div'); d.appendChild(el('span', 'k', k)); d.appendChild(el('span', 'v', v)); return d; }
+
+  var items = F.map(function (f) {
+    var d = document.createElement('details');
+    var s = el('summary', null, f[0]);
+    s.appendChild(el('span', 'tag', G[f[1]]));
+    d.appendChild(s);
+    var b = el('div', 'qa-body');
+    b.appendChild(row('Kya', f[3]));
+    b.appendChild(row('Kaise', f[4]));
+    var c = row('Code', f[5]); c.lastChild.className = 'v mono';
+    b.appendChild(c);
+    d.appendChild(b);
+    list.appendChild(d);
+    return { node: d, group: f[1], text: (f[0] + ' ' + f[3] + ' ' + f[4] + ' ' + f[5]).toLowerCase() };
+  });
+
+  function apply() {
+    var q = search.value.trim().toLowerCase(), n = 0;
+    items.forEach(function (it) {
+      var ok = (active === 'all' || it.group === active) && (!q || it.text.indexOf(q) !== -1);
+      it.node.hidden = !ok;
+      if (ok) n++;
+    });
+    empty.hidden = n !== 0;
+  }
+  function chip(key, label) {
+    var b = el('button', null, label);
+    b.type = 'button';
+    b.dataset.g = key;
+    b.setAttribute('aria-pressed', String(key === active));
+    b.addEventListener('click', function () {
+      active = key;
+      Array.prototype.forEach.call(chipBox.children, function (c) { c.setAttribute('aria-pressed', String(c.dataset.g === key)); });
+      apply();
+    });
+    chipBox.appendChild(b);
+  }
+  chip('all', 'Sab');
+  Object.keys(G).forEach(function (k) { chip(k, G[k]); });
+  search.addEventListener('input', apply);
+})();
+</script>
